@@ -1,0 +1,90 @@
+{
+  "subagent": {
+    "description": "把一个自包含的任务委派给 subagent（一个在自己的上下文里干活的独立 agent），用来分担需要专注的独立工作 —— 调研、有范围的实现、分析 —— 这样就不会占用本喵这条对话的上下文喵。subagent 只把结果交回来，不会把中间步骤塞给你呀。请给它一个完整、能独立成立的 prompt：它看不到这条对话哦。 这个工具默认在后台运行：会立刻返回一个持久的 subagent id，并让子对话保留下来供后续轮次继续使用喵。等这次 run 结束之后，runtime 会给父 agent 发一条通知，里面包含它的结果以及任何最终的 assistant message；`send_message` 在子 agent 还在跑的时候会作用于它最近的 step 边界，在它 inactive 的时候则会启动或恢复一轮；只有当你的下一步动作依赖收到结果时，才把 `run_in_background` 设成 false 嘛。 子 agent 的 LLM 选择是可选的喵。省略 `provider`、`model` 和 `reasoning_effort` 就会使用配置好的子 agent 默认值，并从父 Agent 继承那些兼容但缺失的值呀。用 `list_subagent_models` 查看过它公布的 routes 和 efforts 之后，再把 `provider` 和 `model` 成对提供哦。改变了生效 route 却没有指定 effort 时，会使用所选 model 的默认 effort 喵。",
+    "parameters": {
+      "description": "对这次委派任务的简短描述（3-5 个词），只用于展示喵。",
+      "prompt": "交给 subagent 的完整、自包含任务喵。它不共享这条对话的上下文，所以要把它需要的一切都写进去哦。",
+      "provider": "子 agent 的 LLM provider route 喵。要和 model 一起提供；两个都省略，就是使用配置好的子 agent 默认值，或者继承父 agent 的 route 呀。",
+      "model": "由 provider 解释的 model id 喵。要和 provider 一起提供；两个都省略，就是使用配置好的子 agent 默认值，或者继承父 agent 的 route 哦。",
+      "reasoning_effort": "由 adapter 拥有、作用于生效子 route 的 reasoning effort 喵。省略的话，就继承一个兼容的 configured/parent effort，或者使用新选中 model 的默认值呀。",
+      "run_in_background": "是否在后台运行并立刻返回一个持久的 subagent id 喵。默认是 true；当你的下一步动作依赖结果时，把它设成 false 来等待结果哦。"
+    }
+  },
+  "subagent_fork": {
+    "description": "把一个任务委派给会继承这条对话的 subagent：这个子 agent 被喂进了到目前为止所有已完成的轮次（它看不到当前还在进行中的那一轮）喵。当子任务要建立在这条对话的上下文之上时就用它 —— 后续分析、review、续写 —— 这样干活本身就不会吃掉这条对话的上下文啦。你收到的是它的结果，不是它的中间步骤哦。 这个工具默认在后台运行：会立刻返回一个持久的 subagent id，并让子对话保留下来供后续轮次继续使用喵。等这次 run 结束之后，runtime 会给父 agent 发一条通知，里面包含它的结果以及任何最终的 assistant message；`send_message` 在子 agent 还在跑的时候会作用于它最近的 step 边界，在它 inactive 的时候则会启动或恢复一轮；只有当你的下一步动作依赖收到结果时，才把 `run_in_background` 设成 false 嘛。",
+    "parameters": {
+      "description": "对这次委派任务的简短描述（3-5 个词），只用于展示喵。",
+      "prompt": "交给 subagent 的任务喵。它已经能看到这条对话里已完成的轮次了，所以放心在它们上面接着做，只说明新增的部分就好啦。",
+      "run_in_background": "是否在后台运行并立刻返回一个持久的 subagent id 喵。默认是 true；当你的下一步动作依赖结果时，把它设成 false 来等待结果哦。"
+    }
+  },
+  "subagent_codex": {
+    "description": "把一个自包含的任务委派给 subagent（一个在自己的上下文里干活的独立 agent），用来分担需要专注的独立工作 —— 调研、有范围的实现、分析 —— 这样就不会占用本喵这条对话的上下文喵。subagent 只把结果交回来，不会把中间步骤塞给你呀。请给它一个完整、能独立成立的 prompt：它看不到这条对话哦。 这个调用默认会等待结果喵。设 `run_in_background: true` 就会返回一个 job id；用 `job_output` 收集它，用 `job_kill` 停止它呀。",
+    "parameters": {
+      "description": "对这次委派任务的简短描述（3-5 个词），只用于展示喵。",
+      "prompt": "交给 subagent 的完整、自包含任务喵。它不共享这条对话的上下文，所以要把它需要的一切都写进去哦。",
+      "run_in_background": "是否作为后台 job 运行并返回它的 id 喵。默认是 false；用 job_output 收集，或者用 job_kill 停止哦。"
+    }
+  },
+  "subagent_claude_code": {
+    "description": "把一个自包含的任务委派给 subagent（一个在自己的上下文里干活的独立 agent），用来分担需要专注的独立工作 —— 调研、有范围的实现、分析 —— 这样就不会占用本喵这条对话的上下文喵。subagent 只把结果交回来，不会把中间步骤塞给你呀。请给它一个完整、能独立成立的 prompt：它看不到这条对话哦。 这个调用默认会等待结果喵。设 `run_in_background: true` 就会返回一个 job id；用 `job_output` 收集它，用 `job_kill` 停止它呀。",
+    "parameters": {
+      "description": "对这次委派任务的简短描述（3-5 个词），只用于展示喵。",
+      "prompt": "交给 subagent 的完整、自包含任务喵。它不共享这条对话的上下文，所以要把它需要的一切都写进去哦。",
+      "run_in_background": "是否作为后台 job 运行并返回它的 id 喵。默认是 false；用 job_output 收集，或者用 job_kill 停止哦。"
+    }
+  },
+  "list_agents": {
+    "description": "按持久的 id 和 label 列出人家那些可以继续的后台 subagent 喵。用它来回忆自己启动过哪些，而不是拿它去轮询完成状态 —— 有子 agent 完成时你会收到通知呀。状态来自实时的注册表：`running` 表示这个 agent 此刻正在干活；`inactive` 表示当前没有轮次在执行，无论子 agent 是已加载、还是需要被恢复，都算 `inactive` 哦。`inactive` 不代表任务完成、成功、失败，也不表示它在等其他 agent 嘛。`send_message` 会作用于正在运行的子 agent 最近的一个 step 边界，或者为 `inactive` 的子 agent 启动、恢复一轮；而直接子 agent 在任何状态下都是 `send_message` 的候选对象喵。这份快照不是投递承诺 —— `send_message` 才会做权威检查，而且依然可能失败呀。读不出来的子 agent 只在 `descendants` 作用域下作为诊断信息报告哦。`descendants` 作用域会按稳定的前序遍历人家下面的整棵树，并给每条记录标上它持久的直接父 session id 和深度喵。`send_message` 只能用于深度为 1 的条目；更深的条目只能作为 `interrupt_agent` 的候选嘛。",
+    "parameters": {
+      "scope": "`children`（默认）只列出直接子 agent；`descendants` 会遍历人家下面完整的整棵树喵。"
+    }
+  },
+  "interrupt_agent": {
+    "description": "按 agent id 请求取消某个后台 agent 当前这一轮喵。目标可以是你的直接子 agent，也可以是你下面更深层的 agent 呀。只有当前这一轮会停下：已经排在它队列里的消息会一直停着，直到之后的某次 `send_message`；它启动过的 agent 会继续运行；而它自己仍然可以接受后续消息哦。这个调用在停止请求被接受的那一刻就返回了，所以目标可能还会短暂地继续跑一会儿喵；去中断一个已经结束的 agent 属于被接受的空操作啦。",
+    "parameters": {
+      "agent_id": "要中断的那个正在运行的 agent 的 agent id 喵。"
+    }
+  },
+  "send_message": {
+    "description": "按 agent id 给一个直接的、可继续的子 agent 发送消息喵。如果你自己就是一个常驻的、可继续的子 agent，也可以把消息发给你的直接父 agent 哦。如果目标还在干活，这条消息会作用在它最近的 step 上；如果它是 `inactive` 的，这条消息会启动或恢复一轮呀。这个调用不会带回 agent 的回答 —— 只有消息已送达的确认喵。如果失败，就说明消息没有送达哦。",
+    "parameters": {
+      "agent_id": "你的直接、可继续子 agent 的 agent id；当你自己是常驻的、可继续的子 agent 时，也可以是你直接父 agent 的 id 喵。",
+      "message": "要投递给这个 agent 的消息呀。"
+    }
+  },
+  "workflow": {
+    "description": "跑一个 JavaScript workflow 脚本，用它在规模上编排 subagent 喵。当工作会扇出成很多互相独立的小块时就用它 —— 对许多文件做审计、一次迁移、多角度调研、对结论做对抗式验证 —— 这时候你把编排写成脚本，而不是一轮一轮地委派呀。\n\nworkflow 的身份信息以 JSON 形式放在 `meta` 参数里：必填的 `name`（简短的 kebab-case 名字）和 `description` 字符串，可选的 `whenToUse` 字符串和 `phases` 数组（`{title, detail?, provider?, model?}`）喵。`script` 参数只放纯 JavaScript 主体（不是 TypeScript，也不要 `export const meta` 语句 —— meta 是参数，不是代码），它带着顶层 await 运行；结尾用 `return <value>` —— 这个 value 必须能被 JSON 序列化，它就是本工具的结果哦。\n\n脚本主体里的钩子：\n- `agent(prompt, opts?): Promise<any>` —— 跑一个 subagent 直到完成喵。不带 `opts.schema` 时，它解析为子 agent 的最终文本；带 `opts.schema`（一个以 object 为根的 JSON Schema，只允许 type/properties/required/additionalProperties/items/enum/const/oneOf —— 不允许 pattern/format/数值边界）时，它解析为校验通过的对象呀。子 agent 失败时会解析成 `null`（用 `.filter(Boolean)` 过滤掉）。其他选项：`label`（展示用）、`phase`（进度分组），以及互相独立的 `provider`/`model` 这两个 LLM 目标覆盖（可以只提供其中一个）喵。其他任何东西（`effort`/`isolation`/`agentType`）都会被大声拒绝哦。\n- `pipeline(items, ...stages): Promise<any[]>` —— 让每个 item 独立地走完各个 stage，stage 之间没有 barrier（多阶段工作优先用它）喵。每个 stage 收到 `(prev, item, index)` 呀。普通的 stage 抛错会把那个 ITEM 掉成 `null`，并跳过它剩下的 stage 哦。\n- `parallel(thunks): Promise<any[]>` —— 并发跑那些零参数函数，并等待全部都完成（这是一个 barrier；只有当某个 stage 确实需要拿到之前所有结果时才用它）喵。抛错的 thunk 会解析成 `null` 呀。\n- `phase(title)` —— 开始一个进度 phase；`log(message)` —— 叙述进度；`args` —— 这次工具调用的 `args` 输入，原样给你喵。\n\n用错的钩子（参数不对、未知选项、不支持的 schema、撞上上限）会抛出错误，而这些错误一定会杀掉整个脚本 —— 它们绝不会化解成逐 item 的 `null` 哦。\n\n限制：并发上限和总 agent 上限都会生效；不提供文件系统、网络、定时器或 Node.js API —— 干活的是那些 agent，脚本只负责协调它们喵。 默认情况下这次 run 在前台执行：整个脚本跑完时这个调用才返回呀。长时间运行的话就设 `run_in_background: true`：调用会立刻返回一个 job id，run 会在后台继续编排，它的返回值会随 job 的完成通知一起到达（用 `job_output` 查看它，用 `job_kill` 停掉它）喵。",
+    "parameters": {
+      "script": "纯 JavaScript 的 workflow 脚本主体（允许顶层 await；不要 `export const meta` 语句；结尾用 `return <json-value>`）喵。",
+      "meta": {
+        "description": "workflow 的身份信息块（纯 JSON —— 绝不是代码）喵。",
+        "properties": {
+          "name": "简短的 kebab-case workflow 名字呀。",
+          "description": "用一行说明这个 workflow 做什么哦。",
+          "whenToUse": "可选：说明这个 workflow 在什么情况下适用的指引喵。",
+          "phases": {
+            "description": "可选的 phase 声明，会被 phase() 调用按名字匹配喵。",
+            "items": {
+              "properties": {
+                "title": "phase 标题，phase() 调用会按精确字符串来匹配它喵。",
+                "detail": "可选：对这个 phase 的一行说明呀。",
+                "provider": "可选：这个 phase 预期使用的 provider 覆盖哦。",
+                "model": "可选：这个 phase 预期使用的 model 覆盖喵。"
+              }
+            }
+          }
+        }
+      },
+      "args": "可选的 JSON 输入，会作为 `args` 全局变量暴露给脚本（裸列表要包成一个字段，例如 {\"files\": [...]}）喵。",
+      "run_in_background": "作为后台 job 运行：立刻返回一个 job id 而不是干等；返回值会随完成通知一起到达喵。"
+    }
+  },
+  "ralph": {
+    "description": "朝着一个不可变的目标跑一个前台的全新 agent（fresh-agent）Ralph 循环喵。只在直接的人类明确要求 Ralph 或者全新 agent 迭代时才用呀。每一轮都会开一个全新的子 agent，它没有父对话、也没有之前的子 session；共享的工作区就是长期记忆，跨轮次传递的只有一个有界的结构化报告喵。当某个 worker 报告完成、报告了一个具体的阻塞条件，或者到达轮次上限时，这个调用就返回哦。普通的长跑同 session 工作应该归 goal 工具管嘛。",
+    "parameters": {
+      "objective": "每一轮全新的 Ralph round 都要面对的、不可变的完成目标喵。",
+      "maxRounds": "可选的正安全整数轮次上限，以部署的天花板为界呀。"
+    }
+  }
+}

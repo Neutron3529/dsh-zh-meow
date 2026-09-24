@@ -1,0 +1,21 @@
+{
+  "name": "@local/dsh-zh-meow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "中文猫娘 agent preset：复制标准预设的插件组合，并把模型可见的提示词整体中文化。",
+  "exports": {
+    "./plugin": "./plugin/index.js",
+    "./plugin/index.js": "./plugin/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "audit": "node tools/audit-session.mjs"
+  }
+}

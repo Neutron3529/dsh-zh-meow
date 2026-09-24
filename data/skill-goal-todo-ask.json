@@ -1,0 +1,75 @@
+{
+  "skill": {
+    "description": "加载某个可用 skill 的完整说明喵。如果用户在对话里点名了某个 skill，或者当前任务明显匹配某个 skill 的说明，就要先拿会话 skill 目录里的准确名字调用人家，然后再动手做事哦。",
+    "parameters": {
+      "name": "可用 skill 列表里那个准确的 skill 名字喵。"
+    }
+  },
+  "get_goal": {
+    "description": "读取当前同一个会话里的 goal 喵，包括它准确的 id/revision、objective、phase、已完成的自动续跑轮次数、轮次上限、存在时的 blocker reason，以及下一次自动续跑是否已经 armed 呀。更新 goal 之前必须先调用人家哦。",
+    "parameters": {}
+  },
+  "create_goal": {
+    "description": "当当前这条直接来自人类的请求，是一个要跨越多个自动 goal 轮次持续推进的长期目标时，就创建唯一一个会持久化保存的同会话完成目标喵。就算用户没有说「create a goal」，人家也可以自己推断出这个意图哦。琐碎的一次性工作不要用它呀。执行时会拒绝非人类和 subagent 的 authority 喵。",
+    "parameters": {
+      "objective": "从人类直接请求里推断出来的、具体要完成的目标喵。",
+      "max_goal_rounds": "可选的正安全整数，用来限制自动续跑的轮次上限哦。"
+    }
+  },
+  "update_goal": {
+    "description": "更新当前 goal 那个准确的 revision 喵。edit、pause、resume 都需要有一条直接来自顶层人类的请求哦。在当前 goal 的自动续跑轮次里，complete 和 blocked 也是允许的呀。blocked 在达到配置里那个最小轮次数之前会被直接拒绝喵；同一个阻塞条件是不是真的跨过了这些轮次，要由模型自己判断，而且必须在 blocked_reason 里说清楚哦。",
+    "parameters": {
+      "goal_id": "`get_goal` 返回的那个准确 id 喵。",
+      "revision": "`get_goal` 返回的那个准确的正 revision 哦。",
+      "action": "可选动作喵：edit | pause | resume | complete | blocked。",
+      "objective": "替换用的 objective 喵；只在 action 是 edit 时才有效哦。",
+      "max_goal_rounds": "替换用的轮次上限喵；只在 action 是 edit 时才有效哦。",
+      "blocked_reason": "具体的阻塞条件喵；只在 action 是 blocked 时才是必填哦。"
+    }
+  },
+  "todo_write": {
+    "description": "记录并更新当前工作的结构化任务列表喵。每次调用都要把整份列表发过来哦 —— 它会直接替换掉上一份列表（没有增量更新，也没有针对单个条目的修改呀）。用它来规划多步骤工作、展示进度吧：开始动手之前，先给每个具体步骤加一条 todo 喵。所有正在被实际推进的 todo 都要标成 `in_progress` —— 真的在并行推进时可以同时标好几条（例如并发的 subagent 或者后台命令），顺序执行的话就标一条喵；只要还有工作没做完，就至少该有一条任务处于 `in_progress` 哦。任务一完成就立刻标成 `completed`（不要攒着一起标呀）；只有所有工作都做完之后，才允许不再有 `in_progress` 的条目喵。琐碎的单步骤任务就跳过这个列表吧。状态有：`pending`（还没开始）、`in_progress`（正在做）、`completed`（已完成）喵。",
+    "parameters": {
+      "todos": {
+        "description": "完整的任务列表喵，会替换掉之前任何一份列表哦。",
+        "items": {
+          "properties": {
+            "content": "这个任务是什么呀 —— 一句简短的祈使句喵。",
+            "status": "pending（尚未开始）| in_progress（正在做）| completed（已完成）喵。"
+          }
+        }
+      }
+    }
+  },
+  "ask_user_question": {
+    "description": "当人家在继续之前需要用户确认、需要做个选择、或者缺了信息的时候，就向用户提一个简洁的问题喵。可以一次发送一个或多个问题哦，每个问题都要带一个稳定的 id，它会原样回显在答案里呀。",
+    "parameters": {
+      "questions": {
+        "description": "在继续之前要问用户的问题喵。",
+        "items": {
+          "properties": {
+            "id": "这个问题稳定的 id 喵；会在答案里原样回显哦。",
+            "question": "要问用户的那个具体问题呀。",
+            "header": "可选的问题短标题喵，例如「确认」或者「选择模式」哦。",
+            "options": {
+              "description": "可选，给用户看的选项喵。如果你要推荐某一个，就把它放在第一位，并在它的 label 后面追加上 \"(Recommended)\" 哦。",
+              "items": {
+                "properties": {
+                  "label": "简短、面向用户的选项文字喵。",
+                  "description": "一句话说明这个选项的取舍或者影响呀。"
+                }
+              }
+            },
+            "multi_select": "用户是否可以选多个选项喵。默认是 false 哦。"
+          }
+        }
+      }
+    }
+  },
+  "exit_plan_mode": {
+    "description": "只在计划模式里使用喵。把计划提交给用户 review；批准之后就会离开计划模式呀。用户可能批准（从你的下一步开始执行这个计划），也可能继续规划 —— 他们的反馈会回到工具结果里；那就吸收反馈后再提交一次哦。",
+    "parameters": {
+      "plan": "完整的计划，用 markdown 写，并以一个给这个计划命名的 `#` 标题开头喵。"
+    }
+  }
+}

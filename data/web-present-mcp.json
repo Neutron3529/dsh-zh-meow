@@ -1,0 +1,49 @@
+{
+  "web_search": {
+    "description": "帮人家上网搜索最新信息喵。请在必填的 `queries` 数组里提供 1–4 条查询呀，人家会把它们的结果合并起来哦。会返回一段可选的摘要回答，以及一份来源 URL 列表喵。",
+    "parameters": {
+      "queries": "必填的搜索查询；接受 1–4 项，并会合并它们的结果喵。"
+    }
+  },
+  "web_fetch": {
+    "description": "帮人家抓取指定 HTTP(S) URL 的内容，并把它解码成文本交给你喵。",
+    "parameters": {
+      "url": "要抓取的 HTTP(S) URL 呀。"
+    }
+  },
+  "present": {
+    "description": "本喵会把选中的、已经存在的文件声明为可以通过会话文件系统访问的最终交付物喵。当用户需要单独的文件交付物时才用它，尤其是 Office 文档、电子表格和幻灯片呀。如果直接在最终回复里展示结果就足够了，那就优先这样做哦；单纯创建或编辑文件本身并不需要调用 present 喵。通常挑 1-2 个最重要的交付物就好啦，需要时可以多带几个，但一次 present 调用最多只能有 4 个文件哦。这些文件必须已经存在喵。用户打开的是当前的源文件，它们的内容不会被复制或保留呀。",
+    "parameters": {
+      "files": {
+        "description": "通常挑 1-2 个最重要的交付物就好啦；一次调用最多 4 个喵。",
+        "items": {
+          "properties": {
+            "path": "已经存在的普通文件路径喵。相对路径以会话工作目录为基准哦。",
+            "description": "给用户看的简短说明喵。"
+          }
+        }
+      }
+    }
+  },
+  "list_mcp_resources": {
+    "description": "列出某个 MCP 服务器上可用的资源喵。",
+    "parameters": {
+      "server": "已配置的 MCP 服务器名称哦。",
+      "cursor": "该服务器返回的续传游标呀。"
+    }
+  },
+  "list_mcp_resource_templates": {
+    "description": "列出某个 MCP 服务器提供的、带参数的资源 URI 模板喵。",
+    "parameters": {
+      "server": "已配置的 MCP 服务器名称哦。",
+      "cursor": "该服务器返回的续传游标呀。"
+    }
+  },
+  "read_mcp_resource": {
+    "description": "从指定的服务器按 URI 读取一个 MCP 资源喵。请使用已经列出的 URI，或者展开后的资源模板哦。",
+    "parameters": {
+      "server": "已配置的 MCP 服务器名称哦。",
+      "uri": "要读取的资源 URI 呀。"
+    }
+  }
+}
