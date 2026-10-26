@@ -1,21 +1,33 @@
 {
   "name": "@local/dsh-zh-meow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "中文猫娘 agent preset：复制标准预设的插件组合，并把模型可见的提示词整体中文化。",
+  "description": "喵体中文 agent preset 系列：原版单体、管家、码农、独立校验者、可行性探针，以及可配置的团队设置页。",
+  "main": "./index.js",
   "exports": {
+    ".": "./index.js",
+    "./client": "./client/index.js",
     "./plugin": "./plugin/index.js",
     "./plugin/index.js": "./plugin/index.js",
+    "./team-config": "./plugin/team-config.js",
+    "./delegate": "./plugin/delegate.js",
+    "./cleanup": "./plugin/cleanup.js",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ]
     }
   },
   "scripts": {
-    "test": "node --test tests/",
-    "audit": "node tools/audit-session.mjs"
+    "test": "node --test tests/"
   }
 }

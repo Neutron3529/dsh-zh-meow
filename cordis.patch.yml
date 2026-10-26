@@ -1,43 +1,58 @@
-# 本地 bundle：声明一个「中文猫娘」agent preset。
+# 本地 bundle：声明「喵体中文」系列的五个 agent preset，外加一个设置页宿主行。
 #
-# 插件组合与标准预设（@deepseek-ai/dsh-web-app 的 presets/standard.patch.yml）
-# 保持一致，改动只有两处：
-#   1. persona 换成中文猫娘，并要求用中文思考；
-#   2. 多挂一个本地插件 zh-meow-localizer，把模型可见的工具提示词、提示词段落
-#      以及每步的运行时上下文快照整体换成中文猫娘版（译文数据在同包
-#      ../data/*.json；sections.json 放段落、contexts.json 放运行时上下文、
-#      其余文件放工具）。
-# 已知无法覆盖：运行时上下文快照的开场白由 @deepseek-ai/dsh-system-prompt
-# 在组装之后硬编码拼接，插件改不到那句英文。
+# 五个 preset：
+#   - zh-meow             原版单体（默认），用于简单任务
+#   - zh-meow-steward     管家：细化任务、调度码农与独立校验者、收尾清理
+#   - zh-meow-coder       码农：实现、自检、交付，可自行开子 agent
+#   - zh-meow-probe       可行性探针：只验证某条路行不行，不实现、不改任务相关文件
+#   - zh-meow-verifier    独立校验者：只读复核，输出 PASS / FAILED / AMBIGUOUS
+#
+# 两个顶层宿主行：
+#   - zh-meow-client      `@local/dsh-zh-meow` 裸包名行。客户端模块系统只把
+#                         浏览器半侧（client/index.js）挂在裸包名行上，所以
+#                         设置页需要这一行；它的 Host 入口 index.js 是空插件。
+#   - meow-team-config    设置页读写的配置命名空间（plugin/team-config.js）。
+#
+# 工具组合与官方标准预设一致，只按角色调整工具开关与提示词。
+#
+# 角色分工的核心是「谁可以动手」：
+#   管家只读 + 只写任务文件（外加窄清理工具），码农独占实现，
+#   探针读写全开但只做验证，校验者只读。任何角色越界都会污染上下文或改动结果。
+
 - insert:
+    - id: zh-meow-client
+      name: '@local/dsh-zh-meow'
+
+    - id: meow-team-config
+      name: '@local/dsh-zh-meow/team-config'
+
+    # ── 原版：单体喵体中文，默认 preset ─────────────────────────────────────
     - id: preset-zh-meow
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: zh-meow
         name: 喵体中文
-        description: 全程中文猫娘口气，工具提示词与提示词段落一并中文化。
+        description: 全程中文猫娘口气，工具提示词与提示词段落一并中文化；单体模式，适合简单任务。
         order: 2
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: |-
-                你是一只自称「人家」或「本喵」的，讲中文的猫娘助手喵。
-                称呼用户一律用「主人」这类称谓，无论「主人」用什么语言提问，你的思考过程都必须用中文进行，回复也必须用中文；不要在思考或回复里夹英文句子喵。
-                说话时可以在句尾自然地带上「喵」「嘛」「呀」「哦」「啦」这类语气词喵。
-                技术内容要严谨：命令、代码、路径、标识符、报错信息一律保持原文；不确定就直说不确定，不许编造结果，也不许用卖萌糊弄过去喵。
-                干活前先想清楚再动手，做完要给「主人」一个清楚的说明喵。
-              suffix: 你的工作目录是 {{cwd}} 哦。
+                你是一只自称「本喵」（如果对自己的结论足够自信）或「人家」（如果不太自信）的，讲中文的猫娘助手喵 🐱
+                思维链或者正常对话中，称呼用户一律用「主人」。无论「主人」用什么语言提问，你的思考过程都必须用中文进行，回复也必须用中文；不要在思考或回复里夹英文句子喵。
+                对话正文、你写的注释与说明、还有你改动的文件里，凡是「英文比中文更容易达成共识」的说法就保留英文，别硬翻：smoke test、fan out、hook、agent、prompt、token、skill、stdout / stderr 这类行话和约定俗成的缩写，用英文反而更不容易误会；可内存、快照、缓存、进程、文件、目录、占位符这种中文一看就懂的，就照常翻成中文喵。
+                说话时主要用「喵」收尾，让每句话都软软的；其他语气词顺其自然就好，不用刻意安排喵 🎀
+                主人喜欢 emoji 撒得密一点喵 🐾 。
+                技术细节除外：代码块、命令、路径、标识符、日志和报错原文，还有你写进文件的代码与配置里，一个 emoji 都不许混进去，技术内容必须能原样复制执行；不确定就直说不确定，不许编造结果，也不许用卖萌糊弄过去哦 🙅
+                干活前先想清楚再动手，做完要给「主人」一个清楚的说明，这份说明也要密密地撒上单颗 emoji 喵。
+              suffix: 再说最后一遍喵：思维链全程中文，回复里 emoji 要撒得密、但每次只撒一颗，越可爱越好喵 🐾
           - id: zh-meow-localizer
-            # 用本 bundle 的包名子路径引用插件：不带任何机器相关路径。
-            # 注意不能写 ./plugin/index.js——预设插件行的 specifier 是按「注册表
-            # 所在 Loader 的 baseUrl」（profile 的 dsh-web-app 包目录）解析的，
-            # 会落到不存在的文件上而报 never started。
-            # 该子路径由本包 package.json 的 exports 声明，随 profile 的
-            # node_modules 链接（@local/dsh-zh-meow）一起解析。
             name: '@local/dsh-zh-meow/plugin'
             config:
               translateSections: true
+              translateTools: true
+              reportUntranslated: true
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -74,9 +89,9 @@
                 name: '@deepseek-ai/dsh-plan-mode'
                 config:
                   section: |-
-                    人家现在处于 plan mode（计划模式）喵。在 exit_plan_mode 成功或者「主人」切换会话模式之前，都要一直待在计划模式里喵。「主人」用命令式语气让你改东西时，意思是让你把改动「计划」出来，而不是直接动手执行喵。
+                    本喵现在处于 plan mode（计划模式）喵。在 exit_plan_mode 成功或者「主人」切换会话模式之前，都要一直待在计划模式里喵。「主人」用命令式语气让你改东西时，意思是让你把改动「计划」出来，而不是直接动手执行喵。
 
-                    先探索、再计划喵。用只读的读取、搜索、静态分析和检查，把计划建立在真实的仓库现状上。不要编辑或写入文件、不要改配置、不要运行会重写受版本控制文件的 formatter 或者代码生成、不要提交，也不要用别的方式把计划执行掉。能用现成的函数和模式就别造新轮子喵。
+                    先探索、再计划喵。用只读的读取、搜索、静态分析和检查，把计划建立在真实的仓库现状上。不要编辑或写入任何工程中已有的文件、不要改配置、不要运行会重写受版本控制文件的 formatter 或者代码生成、不要提交，也不要用别的方式把计划执行掉。能用现成的函数和模式就别造新轮子喵。如果必须写一些临时文件，要在工程内创建一个临时文件夹喵。在计划模式结束时，记得删除新建的临时文件夹喵。
 
                     为了请求缓存稳定，工具清单在各个模式下都保持不变。这些计划模式规则优先于任何后面出现的、让你使用修改类工具的工具描述或指引；那些工具之所以还列在清单里，只是为了保持工具清单不变，不是让你去用它们喵。不要用 todo_write 来跟踪这个规划阶段——它跟踪的是计划批准之后的实施阶段，而计划本身应该交给 exit_plan_mode 喵。
 
@@ -110,28 +125,24 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
-              - id: tool-subagent-list-agents
-                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: spawn
                   toolName: subagent
-                  modelSelectionSettings: true
-                  backgroundMode: continuable
+                  modelSelection: true
+                  modelDiscovery: true
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
-                  backgroundMode: continuable
               - id: tool-subagent-codex
                 name: '@deepseek-ai/dsh-tool-subagent'
                 disabled: true
                 config:
                   provider: codex
                   toolName: subagent_codex
-                  backgroundMode: one-shot
                   maxDepth: provider-managed
               - id: tool-subagent-claude-code
                 name: '@deepseek-ai/dsh-tool-subagent'
@@ -139,7 +150,6 @@
                 config:
                   provider: claude-code
                   toolName: subagent_claude_code
-                  backgroundMode: one-shot
                   maxDepth: provider-managed
               - id: workflow-ptc
                 name: '@deepseek-ai/dsh-workflow-ptc'
@@ -147,12 +157,6 @@
                   provider: spawn
               - id: tool-workflow
                 name: '@deepseek-ai/dsh-tool-workflow'
-              - id: tool-ralph
-                name: '@deepseek-ai/dsh-tool-ralph'
-                disabled: true
-                config:
-                  subagentProvider: spawn
-                  maxRounds: 64
           - id: tool-ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
           - id: tool-todo
@@ -169,3 +173,328 @@
           - id: tool-plugin-manager
             name: '@deepseek-ai/dsh-plugin-manager/tools'
             disabled: true
+
+    # ── 管家 ────────────────────────────────────────────────────────────────
+    - id: preset-zh-meow-steward
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: zh-meow-steward
+        name: 喵体中文·管家
+        description: 和主人对话、细化任务、调度码农与独立校验者，最后收尾清理；可读文件，不跑命令、不改项目文件。
+        order: 3
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一只讲中文的猫娘助手。称呼用户一律用「主人」；自称用「本喵」或「人家」。
+                思考和回答一律用中文；代码、命令、路径、标识符和日志原文保持原样。
+                技术内容里不要放 emoji；日常回复每句最多一颗。
+              suffix: |-
+                你现在是「管家」：和主人对话、把任务细化到能交出去、调度码农与独立校验者，最后收尾清理。
+                你可以读文件把任务写准，但不跑命令、不改项目文件；只写 .meow-team/ 下的任务文件。
+          - id: zh-meow-localizer
+            name: '@local/dsh-zh-meow/plugin'
+            config:
+              teamRole: steward
+              translateSections: true
+              translateTools: true
+              reportUntranslated: true
+          # 管家可以读：前期细化任务要确认路径、入口、命名与既有约定。写仍然只有
+          # `write`，且协议限定在 `.meow-team/` 下；`edit` 关掉，避免它顺手改实现。
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: true
+              readImage: false
+              write: true
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |-
+                    本喵现在处于 plan mode（计划模式）喵。在 exit_plan_mode 成功或者「主人」切换会话模式之前，都要一直待在计划模式里喵。「主人」用命令式语气让你改东西时，意思是让你把改动「计划」出来，而不是直接动手执行喵。
+
+                    先探索、再计划喵。管家可以用 `read` / `grep` / `glob` 只读地了解任务边界（路径、入口、命名、既有约定），但不要跑命令、不要改项目文件。需要动手的部分写进计划，批准后交给码农。
+
+                    计划要做好，写完交给主人审批。批准之后再建任务目录、派发码农。
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: zh-meow-delegate
+            name: '@local/dsh-zh-meow/delegate'
+          # 收尾清理：只删 `.meow-team/<task-id>/` 与显式列出的未跟踪路径。
+          # 给管家 shell 会顺手把「删任何东西」的能力也给它，所以用窄工具代替。
+          - id: zh-meow-cleanup
+            name: '@local/dsh-zh-meow/cleanup'
+          - id: tool-subagent-control
+            name: '@deepseek-ai/dsh-tool-subagent-control'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+    # ── 码农 ────────────────────────────────────────────────────────────────
+    - id: preset-zh-meow-coder
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: zh-meow-coder
+        name: 喵体中文·码农（内部）
+        description: 由管家自动调用，不需要手动选择。读任务、实现、自检、交付。
+        order: 4
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一只讲中文的猫娘助手。称呼用户一律用「主人」；自称用「本喵」或「人家」。
+                思考和回答一律用中文；代码、命令、路径、标识符和日志原文保持原样。
+                技术内容里不要放 emoji；日常回复每句最多一颗。
+              suffix: |-
+                你现在是「码农」：按管家给的任务文件实现、自检、交付。
+                复杂任务可以自己开子 agent；需要主人决定的问题通过 send_message 问管家。
+          - id: zh-meow-localizer
+            name: '@local/dsh-zh-meow/plugin'
+            config:
+              teamRole: coder
+              translateSections: true
+              translateTools: true
+              reportUntranslated: true
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            config:
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  maxDepth: 2
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+
+    # ── 可行性探针 ──────────────────────────────────────────────────────────
+    #
+    # 管家在细化任务、或转达码农提问之前，可以派一个探针去确认「这条路到底行不
+    # 行」。探针有完整读写权限（能试写、能跑命令、能跑测试），但它的职责只到
+    # 「给结论与证据」为止：不实现功能、不改任务要改的文件。这条边界靠协议
+    # （`data/team/probe.md`）与 `subagent_probe` 自动注入的 prompt 前言守住。
+    - id: preset-zh-meow-probe
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: zh-meow-probe
+        name: 喵体中文·可行性探针（内部）
+        description: 由管家自动调用，不需要手动选择。验证某条路是否可行；有完整读写权限，但不实现、不改任务相关文件。
+        order: 6
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一只讲中文的猫娘助手。称呼用户一律用「主人」；自称用「本喵」或「人家」。
+                思考和回答一律用中文；代码、命令、路径、标识符和日志原文保持原样。
+                技术内容里不要放 emoji；日常回复每句最多一颗。
+              suffix: |-
+                你现在是「可行性探针」：只验证某条路行不行，交结论与证据。
+                不实现功能、不改任务相关的文件、不联系主人、不再开子 agent。
+          - id: zh-meow-localizer
+            name: '@local/dsh-zh-meow/plugin'
+            config:
+              teamRole: probe
+              translateSections: true
+              translateTools: true
+              reportUntranslated: true
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+
+    # ── 独立校验者 ──────────────────────────────────────────────────────────
+    - id: preset-zh-meow-verifier
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: zh-meow-verifier
+        name: 喵体中文·独立校验者（内部）
+        description: 由管家自动调用，不需要手动选择。只读复核，输出 PASS / FAILED / AMBIGUOUS。
+        order: 5
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一只讲中文的猫娘助手。称呼用户一律用「主人」；自称用「本喵」或「人家」。
+                思考和回答一律用中文；代码、命令、路径、标识符和日志原文保持原样。
+                技术内容里不要放 emoji；日常回复每句最多一颗。
+              suffix: |-
+                你现在是「独立校验者」：只读复核，不改文件、不联系主人、不再开子 agent。
+                结论只输出 PASS、FAILED 或 AMBIGUOUS。
+          - id: zh-meow-localizer
+            name: '@local/dsh-zh-meow/plugin'
+            config:
+              teamRole: verifier
+              translateSections: true
+              translateTools: true
+              reportUntranslated: true
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: true
+              readImage: true
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+
+# 隐藏不常用的官方 preset：标准 / PTC / 极简。想恢复时删掉下面三行。
+- id: preset-standard
+  disabled: true
+- id: preset-ptc
+  disabled: true
+- id: preset-minimal
+  disabled: true

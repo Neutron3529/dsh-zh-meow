@@ -1,0 +1,75 @@
+{
+  "schedule_create": {
+    "description": "在当前会话里建一个提醒，到点就把 prompt 投递过来喵。时间参数只能给一个：after_seconds、at、every_seconds、daily、weekly 或 cron 喵。时区里不存在的本地时刻会被跳过；重复出现的本地时刻只在前一个瞬时触发一次喵。停机之后，重复提醒只补投最近一次错过的那个时刻喵。投递在崩溃后可能重复喵。",
+    "parameters": {
+      "prompt": "到点时要呈现的提醒内容喵。",
+      "title": "简洁的任务名，用主人那边的语言，最多 120 个字符喵。只点出核心动作和对象；像 PR 号、分支名这种必要的目标标识要留着喵。不要把执行频率（例如每天、每小时）、排定的日期/时间、时区、任务状态，或者配置与执行细节（例如只读模式、profile 标签筛选）写进去——就算它们本来就在请求的或现有的标题里也一样喵。不要加括号注释喵。排期信息放进时间参数，执行说明放进 prompt 喵。",
+      "after_seconds": "延迟多少整秒喵。",
+      "every_seconds": "固定频率的间隔，整秒，至少 60，并与创建时间对齐；用 schedule_update 改它时会改按保存时间对齐喵。",
+      "daily": {
+        "description": "每天在某个本地时间喵。",
+        "properties": {
+          "time": "HH:mm:ss，可选 1-3 位小数，例如 23:00:00 喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。"
+        }
+      },
+      "weekly": {
+        "description": "在指定的星期几、某个本地时间喵。",
+        "properties": {
+          "time": "HH:mm:ss，可选 1-3 位小数，例如 09:00:00 喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。",
+          "weekdays": "ISO 星期几，周一是 1、周日是 7，不要重复喵。"
+        }
+      },
+      "cron": {
+        "description": "某个时区下的五字段 Vixie cron 表达式喵。",
+        "properties": {
+          "expression": "分 时 日 月 星期，例如 \"*/15 9-17 * * 1-5\" 喵。两个日期字段都受限时，只要其中一个匹配就算命中喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。"
+        }
+      },
+      "at": "绝对目标时刻：带偏移的 RFC 3339 日期时间，或者本地日期、本地时间加 IANA time_zone 喵。"
+    }
+  },
+  "schedule_delete": {
+    "description": "删掉当前会话里的一个提醒，不管它是 active 还是 inactive 喵。删除不会撤回已经排进队列的提醒消息喵。",
+    "parameters": {
+      "id": "精确的 schedule id 喵。"
+    }
+  },
+  "schedule_list": {
+    "description": "列出当前会话里 active 的提醒喵。"
+  },
+  "schedule_update": {
+    "description": "就地改一个提醒，id 保持不变喵。给一个新的 title、prompt，或者最多一个时间参数；没给的字段保持已存的值喵。要改相对延迟的话，请新建一个提醒喵。",
+    "parameters": {
+      "id": "schedule_list 返回的 schedule id 喵。",
+      "title": "新的任务名；遵循 schedule_create 的标题规则喵。",
+      "prompt": "新的提醒内容喵。",
+      "every_seconds": "固定频率的间隔，整秒，至少 60，并与创建时间对齐；用 schedule_update 改它时会改按保存时间对齐喵。",
+      "daily": {
+        "description": "每天在某个本地时间喵。",
+        "properties": {
+          "time": "HH:mm:ss，可选 1-3 位小数，例如 23:00:00 喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。"
+        }
+      },
+      "weekly": {
+        "description": "在指定的星期几、某个本地时间喵。",
+        "properties": {
+          "time": "HH:mm:ss，可选 1-3 位小数，例如 09:00:00 喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。",
+          "weekdays": "ISO 星期几，周一是 1、周日是 7，不要重复喵。"
+        }
+      },
+      "cron": {
+        "description": "某个时区下的五字段 Vixie cron 表达式喵。",
+        "properties": {
+          "expression": "分 时 日 月 星期，例如 \"*/15 9-17 * * 1-5\" 喵。两个日期字段都受限时，只要其中一个匹配就算命中喵。",
+          "time_zone": "UTC 或 IANA 的 Area/Location，例如 Asia/Shanghai 喵。"
+        }
+      },
+      "at": "绝对目标时刻：带偏移的 RFC 3339 日期时间，或者本地日期、本地时间加 IANA time_zone 喵。"
+    }
+  }
+}

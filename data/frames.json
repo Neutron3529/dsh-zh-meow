@@ -1,0 +1,227 @@
+{
+  "note": "模型可见的框架性英文：运行时上下文快照、工作区说明前言、skill 目录前言、通知与 goal 轮次。整句用 phrases 精确替换；带动态值（路径/URL/轮次）的用 patterns 正则替换。先跑 phrases，再跑 patterns。JSON 里的路径值都是 JSON.stringify 的结果（带引号、反斜杠转义），所以用带引号字符串的正则去匹配。",
+  "phrases": [
+    {
+      "en": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.",
+      "zh": "当前运行时上下文。本快照取代更早的运行时上下文快照。"
+    },
+    {
+      "en": "Current runtime context: none. Earlier runtime-context snapshots no longer apply.",
+      "zh": "当前运行时上下文：无。更早的运行时上下文快照不再适用。"
+    },
+    {
+      "en": "Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.",
+      "zh": "当前 DSH 文件策略：read-only。受 DSH 文件沙箱管控的任何可用操作都不能在常驻模式下修改文件。不要只凭这条策略就拒绝必需的修改：照常尝试可用的工具，并遵循它返回的拒绝与升级指引。"
+    },
+    {
+      "en": "Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations.",
+      "zh": "当前 DSH 文件策略：danger-full-access。DSH 文件沙箱不限制可用操作对文件的修改。"
+    },
+    {
+      "en": " Some platform temporary areas may also be writable.",
+      "zh": "平台临时区域也可能可写。"
+    },
+    {
+      "en": "Approval prompts are disabled in this session: actions that require approval are rejected automatically — do not request sandbox escalation (do not set `sandbox_permissions`).",
+      "zh": "本会话已禁用审批提示：需要审批的操作会被自动拒绝——不要请求沙箱升级（不要设置 `sandbox_permissions`）。"
+    },
+    {
+      "en": "Approval prompts are enabled in this session: operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed.",
+      "zh": "本会话已启用审批提示：需要审批的操作可能会通过已配置的应答方询问；没有可用的应答方时，请求会按失败关闭处理。"
+    },
+    {
+      "en": "never ask the user for approval",
+      "zh": "从不请求用户批准"
+    },
+    {
+      "en": "ask the user for approval",
+      "zh": "向用户请求批准"
+    },
+    {
+      "en": "You are a delegated subagent: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. When the task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply so the delegating agent can handle it.",
+      "zh": "你是一个被委派的子代理：你的权限范围在启动时就已固定，无法从本会话内部扩大——需要审批的操作会被自动拒绝。当任务需要的访问权限超出该范围时，不要重试被拒绝的操作；在回复里说明这一限制，交给委派你的代理处理。"
+    },
+    {
+      "en": "The following workspace instructions may be relevant to your work. Use them as guidance when applicable. More specific instructions take precedence over broader ones. They do not override system, developer, or direct user instructions.",
+      "zh": "以下工作区说明可能与你的工作有关。适用时把它们当作指引。更具体的说明优先于更宽泛的说明。它们不会覆盖系统、开发者或用户的直接指令。"
+    },
+    {
+      "en": "This complete workspace instruction baseline replaces all earlier workspace instruction baselines. ",
+      "zh": "这份完整的工作区说明基线取代此前所有的工作区说明基线。"
+    },
+    {
+      "en": "No workspace instructions are currently active.",
+      "zh": "当前没有生效的工作区说明。"
+    },
+    {
+      "en": "Workspace instructions were omitted or truncated to fit the configured byte budget.",
+      "zh": "为适应配置的字节预算，部分工作区说明已被省略或截断。"
+    },
+    {
+      "en": "These user-global instructions apply to all work. ",
+      "zh": "这些用户全局说明适用于所有工作。"
+    },
+    {
+      "en": "Use them as guidance when relevant; more specific instructions take precedence. They do not override system, developer, or direct user instructions.",
+      "zh": "相关时把它们当作指引；更具体的说明优先。它们不会覆盖系统、开发者或用户的直接指令。"
+    },
+    {
+      "en": "This file changed after it was loaded. Use the following content instead of the previously loaded instructions from this file.",
+      "zh": "该文件在加载后发生了变化。请使用以下内容，替代此前从该文件加载的说明。"
+    },
+    {
+      "en": "Elapsed since the preceding model-visible message: unavailable.",
+      "zh": "距上一条模型可见消息的时间：不可用。"
+    },
+    {
+      "en": "Elapsed since the preceding step context: unavailable.",
+      "zh": "距上一步上下文的时间：不可用。"
+    },
+    {
+      "en": "A skill is a reusable set of task-specific instructions. The following skills are available in this session:",
+      "zh": "skill 是一组可复用的、针对具体任务的说明。本会话可用的 skill 如下："
+    },
+    {
+      "en": "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.",
+      "zh": "如果用户点名了某个 skill，或者任务明显匹配某个 skill 的描述，就在采取任务行动之前用 `skill` 工具按准确名称调用它。加载所有适用的 skill，然后完整遵循其说明。本目录只包含摘要；在加载之前，不要推断或遵循某个 skill 的说明。"
+    },
+    {
+      "en": "A user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.",
+      "zh": "用户也可能直接调用某个 skill；此时它的 <skill_content> 块会出现在本对话里。遵循该内容，不要为同一个 skill 再次调用 `skill` 工具。"
+    },
+    {
+      "en": "The available skill catalog changed. This complete catalog replaces every earlier available-skills list in this session:",
+      "zh": "可用的 skill 目录已变化。这份完整目录取代本会话中更早的所有可用 skill 列表："
+    },
+    {
+      "en": "Use only names in this replacement catalog. If the user names a listed skill, or the task clearly matches its description, call the `skill` tool with the exact name before acting.",
+      "zh": "只使用这份替换目录里的名称。如果用户点名了其中列出的 skill，或者任务明显匹配其描述，就在行动之前用 `skill` 工具按准确名称调用。"
+    },
+    {
+      "en": "No skills are currently available through the `skill` tool. Do not use names from earlier skill catalogs.",
+      "zh": "目前没有可通过 `skill` 工具使用的 skill。不要使用更早的 skill 目录里的名称。"
+    },
+    {
+      "en": "A user may still invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool for it.",
+      "zh": "用户仍可能直接调用某个 skill；此时它的 <skill_content> 块会出现在本对话里。遵循该内容，不要为它调用 `skill` 工具。"
+    },
+    {
+      "en": "Continue working toward the objective in this same session. Treat the current workspace, tool results, and durable session state as authoritative; inspect them instead of assuming earlier narration is still current. Make concrete progress and verify the result. Before claiming completion, gather evidence that the whole objective is achieved, read the current goal, and mark it complete. If work remains, leave the goal active for the next round. Follow the configured goal-tool policy before reporting a blocker.",
+      "zh": "在同一个会话里继续朝目标推进。以当前工作区、工具结果和持久会话状态为准；去检查它们，而不是假定之前的叙述仍然成立。做出实际进展并验证结果。在声称完成之前，先收集能证明整个目标已经达成的证据，读取当前 goal，再把它标记为完成。如果还有工作没做完，就让 goal 保持活动，留到下一轮。报告阻塞之前，先遵循配置好的 goal 工具策略。"
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "^Current working directory: (\"(?:[^\"\\\\]|\\\\.)*\")\\.$",
+      "flags": "mu",
+      "zh": "当前工作目录：$1。"
+    },
+    {
+      "pattern": "^Current DSH file policy: workspace-write\\. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: (\"(?:[^\"\\\\]|\\\\.)*\")\\.",
+      "flags": "mu",
+      "zh": "当前 DSH 文件策略：workspace-write。受 DSH 文件沙箱管控的可用操作可以修改会话工作区内的文件：$1。"
+    },
+    {
+      "pattern": "^Time sampled while preparing turn (\\d+), step (\\d+): (.*)$",
+      "flags": "mu",
+      "zh": "采样时间（准备第 $1 轮第 $2 步）：$3"
+    },
+    {
+      "pattern": "^Browser time zone for this request: (.*?)\\. Interpret otherwise-unqualified dates and times in this zone\\.$",
+      "flags": "mu",
+      "zh": "本次请求的浏览器时区：$1。未标注的日期和时间按该时区解释。"
+    },
+    {
+      "pattern": "^Browser time zone for this request: (.*)\\. Ask the user to clarify otherwise-unqualified dates and times\\.$",
+      "flags": "mu",
+      "zh": "本次请求的浏览器时区：$1。未标注的日期和时间请向用户澄清。"
+    },
+    {
+      "pattern": "^Elapsed since the preceding model-visible message: (.*)\\.$",
+      "flags": "mu",
+      "zh": "距上一条模型可见消息的时间：$1。"
+    },
+    {
+      "pattern": "^Elapsed since the preceding step context: (.*)\\.$",
+      "flags": "mu",
+      "zh": "距上一步上下文的时间：$1。"
+    },
+    {
+      "pattern": "Your parent agent id is (\"[^\"]*\")\\. Before you finish, send your result to that agent with send_message\\(\\{ agent_id: (\"[^\"]*\"), message: \"<self-contained result>\" \\}\\)\\. The parent shares your workspace but does not automatically receive your transcript, tool output, or reasoning\\. Send earlier messages as well when a finding changes what the parent should do next; sending a message does not end your turn\\.",
+      "flags": "u",
+      "zh": "你的父 agent id 是 $1。结束之前，用 send_message({ agent_id: $2, message: \"<self-contained result>\" }) 把结果发给它。父 agent 与你共享工作区，但不会自动收到你的对话记录、工具输出或推理过程。如果某个发现会改变父 agent 接下来的做法，也把之前的消息发过去；发消息不会结束你的回合。"
+    },
+    {
+      "pattern": " ?Additional writable directories: (\\[.*?\\])\\.",
+      "flags": "mu",
+      "zh": "额外可写目录：$1。"
+    },
+    {
+      "pattern": "^Current DeepSeek Harness implementation checkout: (\"(?:[^\"\\\\]|\\\\.)*\")\\.$",
+      "flags": "mu",
+      "zh": "当前 DeepSeek Harness 实现代码检出位置：$1。"
+    },
+    {
+      "pattern": "^Current DeepSeek Harness Web GUI URL: (\"(?:[^\"\\\\]|\\\\.)*\")\\.$",
+      "flags": "mu",
+      "zh": "当前 DeepSeek Harness Web GUI 地址：$1。"
+    },
+    {
+      "pattern": "^The working directory (\"(?:[^\"\\\\]|\\\\.)*\") is unavailable\\. The working directory is now (\"(?:[^\"\\\\]|\\\\.)*\")\\.$",
+      "flags": "mu",
+      "zh": "原工作目录 $1 已不可用。当前工作目录是 $2。"
+    },
+    {
+      "pattern": "^The working directory changed from (\"(?:[^\"\\\\]|\\\\.)*\") to (\"(?:[^\"\\\\]|\\\\.)*\")\\.$",
+      "flags": "mu",
+      "zh": "工作目录已从 $1 改为 $2。"
+    },
+    {
+      "pattern": "^The user changed the approval policy from (.*) to (.*)\\.$",
+      "flags": "mu",
+      "zh": "用户把审批策略从 $1 改成了 $2。"
+    },
+    {
+      "pattern": "^Instructions from: (.*)$",
+      "flags": "mu",
+      "zh": "来自 $1 的说明"
+    },
+    {
+      "pattern": "^Additional instructions from: (.*)$",
+      "flags": "mu",
+      "zh": "来自 $1 的附加说明"
+    },
+    {
+      "pattern": "^Updated instructions from: (.*)$",
+      "flags": "mu",
+      "zh": "来自 $1 的更新说明"
+    },
+    {
+      "pattern": "^Instructions removed: (.*)\\n\\nThe previously loaded instructions from this file no longer apply\\.$",
+      "flags": "mu",
+      "zh": "已移除说明：$1\n\n此前从该文件加载的说明不再适用。"
+    },
+    {
+      "pattern": "^These instructions apply to work under `(.*?)`\\. ?",
+      "flags": "mu",
+      "zh": "这些说明适用于在 `$1` 下的工作。"
+    },
+    {
+      "pattern": "^Workspace instruction budget (.*)$",
+      "flags": "mu",
+      "zh": "工作区说明预算 $1"
+    },
+    {
+      "pattern": "^<goal_round>\\nObjective: (.*)\\nRound: (.*)\\n\\n",
+      "flags": "mu",
+      "zh": "<goal_round>\n目标：$1\n轮次：$2\n\n"
+    }
+  ],
+  "skills": {
+    "common-tip-migration": "把旧版 MouseTip 逻辑迁移到太吾重制版的 CommonTip 构建器。适用于迁移 TipType 处理器、把 MouseTip 的 Init 逻辑搬进 CommonTipsBuilder 或 build 函数、对齐 JSON 原子与运行时键、调试 HideAtom / ShowAtom 行为、为 tooltip 添加异步数据，或把动态 UI 段落转成 CommonTip 模板。",
+    "diagnose-windows-sandbox-acl": "在 Windows 上遇到意外的 DSH 沙箱访问拒绝时使用：工作区写入或列目录失败，或通常可读的路径读不出来。随附命令会检查该路径及其每一级父目录，并在同一次运行里修复它能证实的 ACL 问题。预期内的沙箱限制拒绝不需要修 ACL。",
+    "excel-precise-edit": "在 OOXML Excel 工作簿（.xlsx/.xlsm）里精确编辑单元格，或复制一行不含公式的模板行：带期望值校验、ZIP 级外科式写回和保存后验证；适用于格式、公式、宏或工作簿其他部分必须原样保留的场合。不适用于旧式 .xls 文件，也不适用于整行或整列移动。",
+    "export-untranslated-ui-language": "比较两个 StreamingAssets Language_XX/*_language.txt 文件（奇数行是键、偶数行是值），导出源语言里有、目标语言里缺失的键，并保持相同的键/值行布局。适用于询问两个语言之间（CN 对 EN/KO/CNH）哪些本地化键未翻译或缺失，或需要把缺失键清单交给译者的场合。",
+    "taiwu-save-inspector": "通过项目后端的存档加载器读取太吾的 local.sav 状态，且不修改存档。只提供通用加载、域/成员发现和无参路径读取；业务相关的问题请另写一次性诊断查询。"
+  }
+}

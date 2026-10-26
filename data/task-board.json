@@ -1,0 +1,218 @@
+{
+  "task_board_create": {
+    "description": "在 DSH 任务板上建一张卡；带上 parentId 就是建子任务喵。子任务会从父任务继承所有它没有覆盖的执行目标（工作区、agent preset、权限、模型、推理强度），并连同继承来的绑定一起继承父任务的人工权限确认喵。部署会限制子任务深度（默认一层，最多三层）：除非任务板被配置得更深，否则「子任务的子任务」会被拒绝喵。新卡落在 todo 列，不会自动执行；要跑它得调 task_board_run 喵。",
+    "parameters": {
+      "title": "短标题，显示在卡片上（一行）喵。",
+      "description": "更长的说明文字，展示在详情视图里喵。",
+      "prompt": "发给执行 agent 的指令；留空时就用 title 顶上喵。",
+      "tags": {
+        "description": "标签列表：name 会渲染成徽章、并驱动任务板筛选；promptPrefix 会在每次运行时注入到执行 prompt 前面喵。",
+        "items": {
+          "properties": {
+            "name": "标签名，同一张卡内唯一，最多 32 个字符喵。",
+            "promptPrefix": "可选的引导语，会插在任务 prompt 前面，最多 200 个字符喵。"
+          }
+        }
+      },
+      "labels": {
+        "description": "标签列表：name 会渲染成徽章、并驱动任务板筛选；promptPrefix 会在每次运行时注入到执行 prompt 前面喵。",
+        "items": {
+          "properties": {
+            "name": "标签名，同一张卡内唯一，最多 32 个字符喵。",
+            "promptPrefix": "可选的引导语，会插在任务 prompt 前面，最多 200 个字符喵。"
+          }
+        }
+      },
+      "parentId": "父任务 id，给了就变成子任务；根任务省略它喵。",
+      "workspaceId": "执行必须在哪个工作区里跑；省略就继承本会话所在的工作区（根任务），或者父任务的值（子任务）喵。",
+      "mode": "执行会话用哪个 agent preset 组出来；省略就采用任务板新卡默认值，没配过就用部署默认值喵。",
+      "permission": "执行会话的权限预设；省略就采用任务板新卡默认值喵。省略的权限永远不会从父任务继承——启动时解析的是父绑定喵。高于会话默认值的取值，需要有人在任务板 UI 里确认之后这张卡才能跑喵。",
+      "model": "钉住的模型，写成 provider/model（或者 model id）；省略就采用任务板新卡默认值，没配过就用宿主默认值喵。",
+      "reasoningEffort": "给那个模型用的推理强度 id（adapter 自己拥有的层级，例如 `high`）；省略就采用任务板对该模型的新卡默认值，没有就用模型自己的默认值喵。只有目标模型声明过的强度才会被发送；传空串会把它清回默认值喵。",
+      "reuseSession": "后续运行继续用上一次的执行会话，而不是开一段新对话喵。",
+      "teamRun": "把这个任务当成 Agent Team 来跑：运行它会先起一个 Team Lead 会话，再由宿主在它内部给每个子任务 spawn 一个 teammate 喵。省略或 false 就是每个成员各开一个独立会话喵。部署没有提供 Agent Teams 服务时会被拒绝喵。",
+      "goalRun": "每次运行都以 dsh 内建的 /goal 开场，让会话一直做后续轮次直到目标完成喵。默认关闭：省略（或传 false）就是单个普通轮次，传 true 才让这张卡用上它喵。只有在部署的全局原生 /goal 开关打开时才起作用喵。",
+      "skipVerification": "让这个任务跳过任务板验收闸门：update_goal 可以在没有通过验收的情况下把目标标成完成，执行记录会被标为 skipped 喵。默认 false（省略就继承任务板全局的验收开关）喵。只影响这之后启动的执行喵。",
+      "schedule": {
+        "description": "在创建时就上好计划喵。单次未来运行用 mode `once` 配 at；重复规则用 mode `cron`（或省略 mode）配 5 字段 cron 表达式，还可以用 maxRuns 封顶喵。",
+        "properties": {
+          "enabled": "计划是否处于上弦状态喵。",
+          "mode": "计划种类：`cron` 是重复规则，`once` 是将来某个瞬时只跑一次喵。",
+          "cron": "重复规则的 5 字段 cron：分 时 日 月 星期喵。",
+          "at": "one-shot 的计划瞬时，从 Unix 纪元起的毫秒数（UTC）喵。必须是将来的时刻喵。",
+          "maxRuns": "重复规则最多计划执行的次数（正整数）；省略表示不限喵。"
+        }
+      }
+    }
+  },
+  "task_board_get": {
+    "description": "完整读一张任务卡：prompt、description、labels、所在列、父任务链接、直接子任务、执行目标、计划、权限闸门状态，以及最近十次执行尝试连同它们的 session id 和结果喵。跑卡或改卡之前先读一遍，跑完之后再来读落定的结果喵。",
+    "parameters": {
+      "taskId": "任务 id，用 task_board_list 或 task_board_create 报出来的那个喵。"
+    }
+  },
+  "task_board_list": {
+    "description": "列出 DSH 任务板上的任务（也就是 Web GUI 任务板背后那份由 Host 掌管的账本）喵。可用筛选：状态列、parentId（只看直接子任务）、rootsOnly、tag、自由文本查询，以及是否含已归档喵。每行返回任务 id、标题、所在列、父/子任务链接、执行目标、计划与最近一次运行结果，另外还给出任务板摘要（revision、时区、子任务深度上限、会话默认权限）喵。要看单张卡的全貌用 task_board_get，加活儿用 task_board_create，要执行用 task_board_run 喵。",
+    "parameters": {
+      "status": "只看这一列里的卡喵。",
+      "parentId": "只看这个任务的直接子任务喵。",
+      "rootsOnly": "只看没有父任务的任务（默认 false）喵。",
+      "tag": "只看带这个标签名的任务喵。",
+      "query": "对 title、description、prompt 和标签名做大小写不敏感匹配喵。",
+      "limit": "最多返回多少行（默认 50，上限 200）喵。",
+      "includeArchived": "是否把已归档的任务也算进来（默认 false）喵。"
+    }
+  },
+  "task_board_update": {
+    "description": "改一张任务卡：title、description、prompt、labels，以及执行目标（工作区、agent preset、权限、模型、推理强度、session 复用）喵。只改你传进来的字段；要清掉某个执行目标就传空串，清 labels 就传空数组喵。任务一旦开始执行，title、description 和 prompt 就冻结了；执行目标还能改，因为它们只影响以后的运行喵。改动钉住的权限会重新上膛权限确认闸门喵。",
+    "parameters": {
+      "taskId": "要改的任务 id 喵。",
+      "title": "新标题（宿主会拒绝空标题）喵。",
+      "description": "新描述喵。",
+      "prompt": "新的执行 prompt 喵。",
+      "tags": {
+        "description": "整体替换的标签集合；传空数组就清空所有标签喵。",
+        "items": {
+          "properties": {
+            "name": "标签名，同一张卡内唯一，最多 32 个字符喵。",
+            "promptPrefix": "可选的引导语，会插在任务 prompt 前面，最多 200 个字符喵。"
+          }
+        }
+      },
+      "labels": {
+        "description": "整体替换的标签集合；传空数组就清空所有标签喵。",
+        "items": {
+          "properties": {
+            "name": "标签名，同一张卡内唯一，最多 32 个字符喵。",
+            "promptPrefix": "可选的引导语，会插在任务 prompt 前面，最多 200 个字符喵。"
+          }
+        }
+      },
+      "workspaceId": "新工作区 id；传空串就清掉它喵。",
+      "mode": "新 agent preset id；传空串就清掉它喵。",
+      "permission": "新权限预设；传空串就清回会话默认喵。",
+      "model": "新钉住的模型；传空串就清掉它喵。",
+      "reasoningEffort": "钉住模型的新推理强度 id；传空串就清回模型自己的默认值喵。只发送目标模型声明过的强度喵。",
+      "reuseSession": "让后续运行继续用上一次的执行会话喵。",
+      "teamRun": "把这个任务在普通级联（每个成员一个会话）和 Agent Team 运行之间切换喵。",
+      "goalRun": "每次运行是否都用 dsh 内建的 /goal 开场（默认 false，单个普通轮次）喵。传 true 让这张卡用上，传 false 回到默认喵。",
+      "skipVerification": "这个任务是否跳过任务板验收闸门（默认 false，继承任务板全局开关）喵。传 true 退出，传 false 重新加入喵。只影响这之后启动的执行喵。"
+    }
+  },
+  "task_board_manage": {
+    "description": "对单张任务卡做移动、归档、恢复、删除或结算喵。move-backlog、move-todo、move-running、move-done、move-failed 是手动挪列，覆盖所有列；正在被 runner 执行（有未结算执行记录）的卡不能挪喵。手动挪列只写卡的列，绝不伪造执行记录，所以这种卡报告的是「声明」而不是「运行过的证据」：done/failed 声明活儿是在 Host 运行之外做完（或做失败）的——人干的、外部系统干的、在别处决定的；running 则表示活儿正在进行，但没有被跟踪的 session 喵。活儿应该真的在本机跑进一个 session 时，用 task_board_run 喵。record-external-outcome 是 move-done 与 move-failed 的记录版：当你自己——或者本 Host 之外的另一个 agent——用你自己的模型真的把这张卡做完或做失败时用它，这样终态列和运行历史都出自同一条执行记录喵。它要 result（succeeded 或 failed）和 initiatedBy（谁完成的，例如你自己的 agent 名字），外加可选的 summary；只要卡上还有未结算的执行就会被拒绝——Host 是它正在执行的那次运行唯一的权威喵。它不能记 running 或 cancelled，那些只归 Host 喵。settle 强制关掉任务板已经观察不到的卡的开着的执行（卡住了的 running 卡），把它记为 cancelled、理由就是调用者，于是卡回到 todo 列，可以重跑喵。reset-verification 清掉卡开着的执行上记录的验收异常（超时、认证失败、判分路由解析不出来，或者预算耗尽的尝试），这样下一次 update_goal(action: complete) 会跑一次干净的验收喵。只有那次执行真的带着这类异常才会被执行，它从不清除质量判定；而异常预算一旦用光，卡会被 HOLD 住而不是判失败：这时要告诉主人验收环境不可用，等主人修好之后，这个动作就是清掉它的办法喵。archive 把整棵子任务树一起搬下任务板，只要有一个成员还有未结算的执行就会被拒绝；restore 把任务连同它的祖先和子树一起搬回来；delete 删掉一张卡，只要它还有子任务（先解绑或删掉它们）或者它正在跑，就会被拒绝喵。它不能确认权限绑定：确认闸门是人在任务板 UI 里做的人工动作喵。",
+    "parameters": {
+      "taskId": "要操作的任务喵。",
+      "action": "要执行的生命周期操作喵。",
+      "result": "只给 record-external-outcome：外部 agent 实际得出的判定喵。",
+      "initiatedBy": "只给 record-external-outcome：谁在这个宿主之外把活儿做完的（例如你自己的 agent 名字）喵。",
+      "summary": "只给 record-external-outcome：可选的自由文本备注，随记录一起存下来喵。"
+    }
+  },
+  "task_board_run": {
+    "description": "现在就在任务板上跑一张任务，或者重跑一张已经结算的卡喵。跑一张任务会同时跑它的整棵子任务树：Host 在一个 run group 下给每个成员开一个真正的 DSH session，每个 session 重放自己卡上钉住的工作区、agent preset、权限和模型；没有钉住的子任务继承它最近的那个祖先喵。父卡会一直待在 running 列，直到它自己那一轮和每个直接子任务都结算完毕，而只要有成员失败它就算失败；单个子任务失败绝不会拦住其它成员喵。有效权限高于部署会话默认值的卡会被以 confirmation-required 拒绝，直到有人在任务板 UI 里确认这个绑定；本工具自己没法确认喵。如果那张卡的任务带着 teamRun，那么它改为启动一个 Team Lead session，由 Host 在里面给每个子任务 spawn 一个 teammate，这些卡因此是作为一个 Agent Team 跑，而不是各自独立的 session；这种模式需要部署的 Agent Teams 服务，缺了就会被拒绝喵。执行会真的消耗 API 配额喵。session 是异步创建的，所以要靠 task_board_get 把它们的 id 和结果读回来喵。",
+    "parameters": {
+      "taskId": "要跑的任务；跑根任务会连同它的整棵子树一起跑，跳过已经在 done 列的子任务喵。",
+      "rerun": "重跑一张已经结算的任务：先把它的列重置回 todo 再开始（默认 false）喵。"
+    }
+  },
+  "task_board_schedule": {
+    "description": "给任务的计划运行上弦、改计划，或者解除计划的启用状态喵。计划有两种：一种是可以重复的 5 字段 cron 规则（day-of-month 与 day-of-week 按 Vixie 语义：两个都受限时取 OR，否则取 AND），另一种是在将来某个时刻只跑一次的 one-shot 喵。one-shot 要传 mode `once` 和 at（计划时刻，UTC 毫秒时间戳）喵。重复规则要传 mode `cron`（或者省略 mode）加 cron 表达式，可以用 maxRuns 封顶（正整数，表示计划执行次数；省略表示不限，传 0 表示清掉上限）喵。墙钟时间按规则里存的 IANA 时区读；省略 timeZone 就用 task_board_list/task_board_get 报出的 Host 时区喵。DST 的空档会被跳过，回拨造成的歧义时刻只在前一个瞬时触发一次喵。到点的计划任务跑的是和手动运行一样的级联，所以根任务会跑它整棵子树，减去已经躺在 done 列里的子任务喵。调度器只统计它真的启动起来的执行次数；规则一旦用满运行预算就在账本里把自己停掉，而手动运行从不消耗预算喵。计划树里只要有一个未确认的、高于默认值的权限，整条计划就会被拒绝且不消耗预算，理由会以 schedulerError 报在列表的任务板摘要里喵。Host 停机期间错过的时刻会被跳过、从不排队（one-shot 的瞬时在停机期间过去的，会以 missed 停掉）；已经在跑的任务会跳过这一次，也不消耗预算喵。",
+    "parameters": {
+      "taskId": "计划要改的那个任务喵。",
+      "enabled": "上弦（true）或者解除（false）计划喵。",
+      "mode": "计划的种类：`cron` 是重复规则，`once` 是单个未来瞬时喵。省略就保留已存的种类喵。",
+      "cron": "重复规则的 5 字段 cron 表达式：分 时 日 月 星期喵。",
+      "at": "one-shot 的计划瞬时，从 Unix 纪元起的毫秒数（UTC）喵。必须是将来的时刻喵。",
+      "timeZone": "读墙钟时间用的 IANA 时区（例如 Asia/Shanghai）喵。省略就保留已存的时区，传空串就清回宿主时区喵。",
+      "maxRuns": "重复规则最多计划执行的次数（正整数）喵。省略就保留已存的上限；传 0 就清回不限喵。"
+    }
+  },
+  "task_board_set_parent": {
+    "description": "把一张已有任务挂到某个父任务下面（变成子任务），或者把 parentId 设成空串解绑、回到根任务板喵。父任务不存在或已归档、被移动的任务本身就是它的后代、结果深度超过部署的子任务上限（默认一层，最多三层），或者任务还有未结算的执行（它的链接可能还是运行中的级联父指针）时，Host 都会拒绝这次链接喵。跑一张任务会并发地在它的子树上开一个 run group，并且不碰已经坐在 done 列里的子任务；父卡要等它自己那一轮、以及它打开的每个直接子任务都结算之后才结算喵。",
+    "parameters": {
+      "taskId": "父任务链接要改的那个任务喵。",
+      "parentId": "父任务 id；传空串就把任务解绑、放回根任务板喵。"
+    }
+  },
+  "task_board_github_close_issue": {
+    "description": "关掉任务卡背后那张 GitHub issue——前提是活儿真的落地了喵。除非这张卡关联的 pull request 状态是 MERGED，否则会被拒绝：本地跑通不算一份经过评审的改动喵。这条不执行 shell 命令喵。",
+    "parameters": {
+      "taskId": "关联了 GitHub issue 的任务 id 喵。"
+    }
+  },
+  "task_board_github_comment": {
+    "description": "在任务卡背后的 GitHub issue 上发一条评论喵。用它报告做了些什么、把 pull request 挂上去，或者说明为什么没修就关掉了任务喵。正文是 Markdown，长度必须压在限制之内喵。这条不执行 shell 命令喵。",
+    "parameters": {
+      "taskId": "关联了 GitHub issue 的任务 id 喵。",
+      "body": "要发的 Markdown 评论正文喵。不能为空，并且要在长度上限之内；对话记录属于卡片，不属于评论喵。"
+    }
+  },
+  "task_board_github_create_pr": {
+    "description": "给关联了 GitHub issue 的任务卡开一个 GitHub Pull Request 喵。会先确认 head 分支已经在远端存在，然后建 PR、记下 PR 元数据，并给 issue 打上 PR 阶段标签喵。这条不执行 shell 命令喵。",
+    "parameters": {
+      "taskId": "关联了 GitHub issue 的任务 id 喵。",
+      "headBranch": "装着改动的远端 head 分支，必须已经存在于远端喵。",
+      "baseBranch": "目标基线分支（默认是仓库默认分支，例如 main）喵。",
+      "title": "PR 标题（默认用任务标题）喵。",
+      "body": "PR 正文（默认会带上 `Fixes #<issue>` 和任务描述）喵。",
+      "draft": "是否创建成草稿 PR 喵。"
+    }
+  },
+  "task_board_github_get": {
+    "description": "取一张任务卡的 GitHub 集成详情：远端 issue 的标题、正文、labels、pull request 详情，以及同步状态喵。",
+    "parameters": {
+      "taskId": "任务板上的任务 id 喵。",
+      "owner": "仓库所有者（和 repository、issueNumber 一起用）喵。",
+      "repository": "仓库名（和 owner、issueNumber 一起用）喵。",
+      "issueNumber": "GitHub issue 编号喵。"
+    }
+  },
+  "task_board_github_link_pr": {
+    "description": "把一张已经存在的 GitHub Pull Request 关联到（同样关联了 GitHub issue 的）任务卡上，同时更新 PR 元数据和由插件管理的阶段标签喵。",
+    "parameters": {
+      "taskId": "关联了 GitHub issue 的任务 id 喵。",
+      "pullRequestNumber": "GitHub 上的 pull request 编号喵。"
+    }
+  },
+  "task_board_github_list": {
+    "description": "列出与 GitHub issue 关联的任务卡，带上远端 issue 状态、远端 labels 和 pull request 元数据喵。",
+    "parameters": {
+      "hasPr": "按是否已经关联了 pull request 来筛选喵。",
+      "owner": "按仓库所有者筛选喵。",
+      "repository": "按仓库名筛选喵。",
+      "state": "按远端 issue 状态筛选（open、closed 或 all；默认 all）喵。"
+    }
+  },
+  "task_board_github_refresh": {
+    "description": "触发一次 GitHub issue/pull request 与任务板之间的同步，对象可以是单张任务、单个仓库，或者所有已配置的仓库喵。",
+    "parameters": {
+      "taskId": "只刷新这一张任务喵。",
+      "owner": "要刷新的仓库所有者喵。",
+      "repository": "要刷新的仓库名喵。"
+    }
+  },
+  "task_board_github_repositories": {
+    "description": "读取和修改 GitHub Issues 集成所同步的仓库列表喵。一个 issue 会被纳入，条件是它带着纳入标签，或者被指派给配置好的 assignee 喵。调用一返回，配置就立刻写进插件配置，不用重启喵。",
+    "parameters": {
+      "action": "list 读配置好的仓库；add、remove 和 update 会改写列表喵。",
+      "repository": "要操作的仓库：owner/repo、GitHub URL，或者 SSH remote 喵。add、remove、update 必填喵。",
+      "inclusionLabel": "把 issue 纳入任务板的标签（默认 dsh）喵。",
+      "assignee": "被指派人的登录名，这些 issue 也会被纳入；用 @me 表示宿主登录的账号，传空串就关掉这条通道喵。像「指派给我」这种粗筛就放这儿喵。",
+      "includeUnassigned": "是否也纳入没人指派的 issue；在 issue 从不指派的仓库上打开它喵。它绝不会拉进指派给别人的 issue 喵。",
+      "baseBranch": "pull request 的目标基线分支（默认 main）喵。",
+      "prCreationEnabled": "是否允许扩展为完成的卡开 pull request 喵。",
+      "pollingIntervalMs": "后台轮询间隔，单位毫秒（默认 300000；0 表示关掉轮询）喵。",
+      "analysisModel": "这个仓库的卡做 AI issue 分析时用的 provider/model；空串会回落到卡片钉住的模型，再回落到宿主默认喵。"
+    }
+  },
+  "task_board_github_setup": {
+    "description": "配置任务板的 GitHub Issues 集成：读配置状态、存入或清除 GitHub token，以及跑一次对 GitHub 的真实连通测试喵。token 存在宿主侧的 harness 凭据库里，任何工具都不会把它回传喵。由于作为参数传进来的 token 会变成这段对话的一部分，主人能碰到扩展设置卡时，最好让主人自己粘贴进去喵。",
+    "parameters": {
+      "action": "status 读当前配置；set-token 存下 token；clear-token 移除它；test 会真的去调 GitHub 喵。",
+      "token": "要存的 GitHub token；set-token 必填喵。它会成为这段对话的一部分喵。",
+      "owner": "只测这个仓库所有者喵。",
+      "repository": "只测这个仓库喵。"
+    }
+  }
+}

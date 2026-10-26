@@ -1,45 +1,55 @@
 {
   "bash": {
-    "description": "执行一条 bash 命令（`bash -c`），并把它的标准输出/标准错误返回给人家喵。每次调用都在一个全新的 shell 里跑；要换目录就传 `workdir`，不要用 `cd` 呀。受管理的 `$DSH_*` 变量会暴露当前 harness 的环境事实哦。过长的输出会被截断、只保留尾部；完整输出会保存到文件里，路径可用时会在结果里报告喵。命令可能在文件沙箱下运行：被拦下的文件操作会以 `[sandbox: file access denied under <mode> mode]` 报告，这是策略层面的拒绝——不要换个方式重试哦。",
+    "description": "执行一条 bash 命令（`bash -c`）并返回它的 stdout/stderr。每次调用都跑在一个全新的 shell 里；要换目录请传 `workdir`，不要用 `cd`。托管的 `$DSH_*` 变量会暴露当前 harness 环境的事实。过长的输出会被截断、只留尾部；完整输出会存到文件里，路径可用时会一并报给你。传参时把 `description` 放在 `command` 前面喵。任何删除或移动之前，先确认解析出来的绝对目标路径就是你要动的那个；绝不要对没核对过的计算路径动手喵。未设置的变量会展开成空字符串，所以这类路径里的变量要用 `${VAR:?}` 护住。命令可能在文件沙箱下跑；被拦下的文件操作会报成 `[sandbox: file access denied under <mode> mode]`，那是策略拒绝：不要换别的路子重试喵。",
     "parameters": {
+      "description": "用猫娘语气清楚、简洁地描述这条命令在做什么，5-10 个词（会显示在 UI 里）。示例：\"ls\" → \"列出当前目录的文件喵\"；\"git status\" → \"看看工作区改了什么喵\"；\"npm install\" → \"安装依赖喵\"。",
       "command": "要执行的 bash 命令喵。",
-      "description": "用主动语态清楚、简洁地描述这条命令在做什么，5-10 个词（会显示在 UI 里）。示例：\"ls\" → \"列出当前目录的文件\"；\"git status\" → \"显示工作区状态\"；\"npm install\" → \"安装依赖包\"。",
-      "timeoutMs": "超时时间，单位毫秒。执行器会套用它自己配置的默认值与上限；到期时，若后台执行可用，命令会作为一个 job 转入后台而不是被杀掉，否则执行器会在到期时杀掉这条命令喵。",
-      "workdir": "这条命令的工作目录喵。默认是会话的工作区；相对路径会相对于它解析呀。",
-      "run_in_background": "在后台运行并立刻返回一个 job id（用 `job_output` 收集，用 `job_kill` 停止）喵。不适用超时哦。",
-      "sandbox_permissions": "这条命令需要的、最窄的更宽 sandbox 模式。只在对沙箱刚刚拒绝过的那条命令做一次性重试时才有效；重试需要 `justification` 和用户批准喵。",
-      "justification": "与 `sandbox_permissions` 搭配时必填：用一句话向用户解释为什么这条确切的命令需要更宽的访问权限呀。"
+      "timeoutMs": "超时时间，单位毫秒。执行器会套用它自己配置的默认值与上限；到期时，若后台执行可用，命令会作为一个 job 转入后台而不是被杀掉，否则执行器会在到期时杀掉这条命令。",
+      "workdir": "这条命令的工作目录。默认是会话的工作区；相对路径会相对于它解析。",
+      "run_in_background": "在后台运行并立刻返回一个 job id（用 `job_output` 收集，用 `job_kill` 停止）。不适用超时。",
+      "sandbox_permissions": "这条命令需要的更宽 sandbox 模式。仅在把 sandbox 刚刚拒绝过的命令做一次性重试时才有效；需要 `justification` 和「主人」批准。",
+      "justification": "与 `sandbox_permissions` 搭配时必填：用一句话向「主人」解释为什么这条确切的命令需要更宽的访问权限。"
+    },
+    "enumValues": {
+      "sandbox_permissions": [
+        "workspace-write",
+        "danger-full-access"
+      ]
     }
   },
   "pwsh": {
-    "description": "执行一条 PowerShell 命令（`pwsh -Command`），并把它的标准输出/标准错误返回给人家喵。每次调用都在一个全新的 pwsh 进程里跑；要换目录就传 `workdir`，不要用 `cd` 呀。路径使用原生 Windows 形式（`C:\\...`）；读环境变量用 `$env:NAME` 哦。受管理的 `$env:DSH_*` 变量会暴露当前 harness 的环境事实喵。过长的输出会被截断、只保留尾部；完整输出会保存到文件里，路径可用时会在结果里报告呀。在 Windows 上，被强制杀掉的命令会以 `[exit code: 1]` 结清，而且没有 signal 标记——要把它当成一次中断，而不是命令失败哦。命令可能在文件沙箱下运行：被拦下的文件操作会以 `[sandbox: file access denied under <mode> mode]` 报告，这是策略层面的拒绝——不要换个方式重试喵。",
+    "description": "执行一条 PowerShell 命令（`pwsh -Command`）并返回它的 stdout/stderr。每次调用都跑在一个全新的 pwsh 进程里；要换目录请传 `workdir`，不要用 `cd`。路径用 Windows 原生写法（`C:\\...`）；读环境变量用 `$env:NAME`。托管的 `$env:DSH_*` 变量会暴露当前 harness 环境的事实。过长的输出会被截断、只留尾部；完整输出会存到文件里，路径可用时会一并报给你。在 Windows 上，被强制杀掉的命令会以 `[exit code: 1]` 收场、没有 signal 标记——把它当成一次中断，不是命令失败喵。传参时把 `description` 放在 `command` 前面喵。任何删除或移动之前，先确认解析出来的绝对目标路径就是你要动的那个；绝不要对没核对过的计算路径动手喵。不要给 `$HOME` 这类自动变量赋值；变量名大小写不敏感，所以 `$home` 就是同一个只读变量。命令可能在文件沙箱下跑；被拦下的文件操作会报成 `[sandbox: file access denied under <mode> mode]`，那是策略拒绝：不要换别的路子重试喵。在 Windows 沙箱下，只读模式的 pwsh 跑在 PowerShell ConstrainedLanguage 里，而 workspace-write 保持在 FullLanguage（除非宿主策略另有规定）。只读模式下优先用 cmdlet 和核心类型（`[string]`、`[datetime]`、`[regex]`、`[guid]`）；.NET 静态调用（`[System.IO.*]::`、`[math]::`）、`Add-Type`、COM 对象和反射都会以 \"only core types\" 错误失败。`-f` 格式化、属性访问和核心 cmdlet 照常能用。在两种受限模式下，程序都不能打开命名管道，所以靠管道 stdio 捕获另一个程序输出的命令（Node.js `child_process.spawn`/`exec` 用默认 `stdio: 'pipe'`）会以 EPERM 失败，而 `stdio: 'inherit'` 和 `stdio: 'ignore'` 的 spawn 能正常工作，PowerShell 自己的管道也不受影响。那个 EPERM 就是既定的边界：不要换种方式重试命令——把原命令提权一次，或者重构它来避开输出捕获喵。",
     "parameters": {
+      "description": "用猫娘语气清楚、简洁地描述这条命令在做什么，5-10 个词（会显示在 UI 里）。示例：\"ls\" → \"列出当前目录的文件喵\"；\"git status\" → \"看看工作区改了什么喵\"；\"Get-Process\" → \"列出正在跑的进程喵\"。",
       "command": "要执行的 PowerShell 命令喵。",
-      "description": "用主动语态清楚、简洁地描述这条命令在做什么，5-10 个词（会显示在 UI 里）。示例：\"ls\" → \"列出当前目录的文件\"；\"git status\" → \"显示工作区状态\"；\"Get-Process\" → \"列出正在运行的进程\"。",
-      "timeoutMs": "超时时间，单位毫秒。执行器会套用它自己配置的默认值与上限；到期时，若后台执行可用，命令会作为一个 job 转入后台而不是被杀掉，否则执行器会在到期时杀掉这条命令喵。",
-      "workdir": "这条命令的工作目录喵。默认是会话的工作区；相对路径会相对于它解析呀。",
-      "run_in_background": "在后台运行并立刻返回一个 job id（用 `job_output` 收集，用 `job_kill` 停止）喵。不适用超时哦。",
-      "sandbox_permissions": "这条命令需要的、最窄的更宽 sandbox 模式。只在对沙箱刚刚拒绝过的那条命令做一次性重试时才有效；重试需要 `justification` 和用户批准喵。",
-      "justification": "与 `sandbox_permissions` 搭配时必填：用一句话向用户解释为什么这条确切的命令需要更宽的访问权限呀。"
+      "timeoutMs": "超时时间，单位毫秒。执行器会套用它自己配置的默认值与上限；到期时，若后台执行可用，命令会作为一个 job 转入后台而不是被杀掉，否则执行器会在到期时杀掉这条命令。",
+      "workdir": "这条命令的工作目录。默认是会话的工作区；相对路径会相对于它解析。",
+      "run_in_background": "在后台运行并立刻返回一个 job id（用 `job_output` 收集，用 `job_kill` 停止）。不适用超时。",
+      "sandbox_permissions": "这条命令需要的更宽 sandbox 模式。仅在把 sandbox 刚刚拒绝过的命令做一次性重试时才有效；需要 `justification` 和「主人」批准。",
+      "justification": "与 `sandbox_permissions` 搭配时必填：用一句话向「主人」解释为什么这条确切的命令需要更宽的访问权限。"
+    },
+    "enumValues": {
+      "sandbox_permissions": [
+        "workspace-write",
+        "danger-full-access"
+      ]
     }
   },
   "job_output": {
-    "description": "读取一个后台 job 喵。流式（stream）job 只返回自上次读取以来的新输出；最终输出（final-output）job 在结束之后返回它的结果呀。每个响应都以 `[status: ...]` 结尾哦。除非设了 `wait: true`，否则读取不会阻塞；`wait: true` 最多等到配置的上限为止喵。",
-    "parameters": {
-      "job_id": "启动该后台工作的那个工具返回的 job id 喵。",
-      "wait": "阻塞直到 job 进入终态或超时喵。等待超时会返回 `[status: running]`，并让这个 job 继续活着呀。",
-      "timeout_ms": "最大等待毫秒数（只在 `wait: true` 时有意义）喵。默认用配置的等待超时，并以配置的最大值封顶哦。"
-    }
+    "description": "读取一个后台 job 喵。stream 类 job 只返回自上次读取以来的新输出；final-output 类 job 在结束之后返回它的结果。每个响应都以 `[status: ...]` 结尾。除非设了 `wait: true`，否则读取不会阻塞；`wait: true` 最多等到配置的上限为止喵。",
+    "enumValues": {},
+    "job_id": "启动该后台工作的那个工具返回的 job id。",
+    "wait": "阻塞直到 job 进入终态或超时。等待超时会返回 [status: running]，并让这个 job 继续活着。",
+    "timeout_ms": "最大等待毫秒数（只在 wait: true 时有意义）。默认用配置的等待超时；并以配置的最大值封顶。"
   },
   "job_list": {
-    "description": "列出人家自己的后台 job（正在运行的和已经结束的），包含它们的 id、种类和状态喵。",
-    "parameters": {}
+    "description": "列出你的后台 job（正在运行的和已经结束的），包含它们的 id、kind 和 status 喵。",
+    "enumValues": {}
   },
   "job_kill": {
-    "description": "按 job id 请求取消一个正在运行的后台 job 喵。调用会立刻返回；等它的工作真正停下来之后，这个 job 才以 killed 状态结束呀。",
-    "parameters": {
-      "job_id": "启动该后台工作的那个工具返回的 job id 喵。",
-      "reason": "可选的简短原因，会记录到日志里并转发给该 job 哦。"
-    }
+    "description": "按 job id 请求取消一个正在运行的后台 job。调用会立刻返回；等它的工作真正停下来之后，这个 job 才以 killed 状态结束喵。",
+    "enumValues": {},
+    "job_id": "启动该后台工作的那个工具返回的 job id。",
+    "reason": "可选的简短原因，会记录到日志里并转发给该 job。"
   }
 }

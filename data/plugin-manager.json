@@ -1,0 +1,16 @@
+{
+  "plugin_manager": {
+    "description": "在当前 profile 里列出插件或 bundle、启用或停用它们、安装一个 bundle，或者移除一个已安装的 bundle 喵。每个动作都需要 danger-full-access 权限，或者为这一次调用单独批准喵。批准不会改变会话的权限模式喵。改动会影响这个 profile 里的每个会话喵。先 list 拿到精确的标识符喵。安装包可能会执行被允许的 build 脚本喵。运行中的 profile 会立刻应用改动，包括升级已安装的包；没有实际应用的改动结果会带上 nextStep，说明接下来该做什么、或者该告诉主人什么喵。DSH 版本要求不满足（`engines.dsh`，没有就用 DSH 的 peer dependencies）会挡住安装和激活喵。版本豁免有崩溃和数据丢失的风险：授予之前先警告主人，并拿到对确切插件与运行时版本的明确许可喵。",
+    "parameters": {
+      "action": "管理操作喵。",
+      "target": "按 action 而定：插件条目 id、bundle 包名，或者安装 spec 喵。对 Official 目录里的条目，把 list_bundles 给出的 installTarget.spec 传给 install_bundle 喵。",
+      "enabled": "set 类操作必填；安装时默认 true 喵。对 set_version_exemption，true 是授予、false 是撤销喵。",
+      "runtimeVersion": "给 set_version_exemption 用：list_version_exemptions 给出的确切 DSH 版本喵。target 必须是 manifest 里的 package-name@version，不能是别名或版本区间喵。",
+      "acceptRisk": "授予豁免时用：只有在警告过主人可能的崩溃和数据丢失、并拿到对这对确切插件与运行时的明确许可之后，才传 true 喵。笼统的安装许可不够喵。",
+      "approvedBuilds": "给 install_bundle 用：只有在主人在对话里明确同意运行这些 install 脚本之后，才传 pendingBuilds 里的名字喵。这会为当前 profile 授予持久许可喵。",
+      "registry": "给 install_bundle 用：主人点名了 npm registry URL 就先问它；否则用配置好的 registry，连不上时再用配置的 fallback 喵。",
+      "offset": "列表偏移，从 0 开始；默认 0 喵。",
+      "limit": "列表分页大小，1 到 100；默认 25 喵。"
+    }
+  }
+}

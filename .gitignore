@@ -1,0 +1,5 @@
+# 本地化漏翻自查报告：每次装配都可能重写，属于生成物
+.untranslated-report*.json
+
+# 依赖目录（本包零依赖，保留规则以防将来引入构建）
+node_modules/
