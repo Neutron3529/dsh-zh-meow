@@ -7,6 +7,7 @@
  * `settings.section` / `configForms` 能力。
  *
  * 页面读写 profile 顶层条目 `meow-team-config` 的 volatile 字段：
+ *   - `ptc`（编码模式：PTC / 原生）
  *   - `coder.model` / `coder.effort`
  *   - `verifiers[]`（id、enabled、model、effort、mode）
  *
@@ -27,6 +28,9 @@ window.__ModuleLoader__.load({
       zh: {
         title: '喵体中文',
         note: '这里的配置对团队流程生效；保存后下一轮对话就会使用新配置。模型与强度留空表示继承 DSH 当前设置。',
+        executor: '编码模式',
+        ptc: 'PTC 模式（模型写 run_code 程序来调工具）',
+        ptcHint: '默认开启：模型把多次工具调用写进一段程序，中间结果不占对话上下文。关掉则逐次直接调用工具。管家固定用原生模式（它没有命令工具，PTC 的 Node 能力会绕开它的边界）。宿主没有挂 PTC runtime 时自动退回原生模式。切换在下一轮生效。',
         steward: '管家',
         stewardHint: '模型与强度继承 DSH 当前设置（在会话模型选择器里修改）。',
         coder: '码农',
@@ -49,6 +53,9 @@ window.__ModuleLoader__.load({
       en: {
         title: 'Meow Chinese',
         note: 'Applies to the team workflow. Leave model or effort empty to inherit the DSH setting; the next turn picks up saved changes.',
+        executor: 'Coding mode',
+        ptc: 'PTC mode (the model writes run_code programs to call tools)',
+        ptcHint: 'On by default: the model folds several tool calls into one program, so intermediate results stay out of the conversation. Turn it off to call tools one by one. The steward always uses native mode (it has no shell, and PTC Node access would bypass its boundaries). Without a PTC runtime the plugin falls back to native mode. Changes apply on the next turn.',
         steward: 'Steward',
         stewardHint: 'Model and effort inherit the current DSH session setting (change it in the session model picker).',
         coder: 'Coder',
@@ -140,6 +147,8 @@ window.__ModuleLoader__.load({
       const writable = snapshot.writable === true
       const coder = snapshot.value.coder ?? { model: '', effort: 'low' }
       const verifiers = Array.isArray(snapshot.value.verifiers) ? snapshot.value.verifiers : []
+      // 缺省即开启：老配置里没有这个字段时，PTC 模式照旧生效。
+      const ptc = snapshot.value.ptc !== false
 
       const updateCoder = (patch) => { save('coder', { ...coder, ...patch }) }
       const setVerifiers = (next) => { save('verifiers', next) }
@@ -164,6 +173,20 @@ window.__ModuleLoader__.load({
 
       return h('div', { style: { display: 'grid', gap: '16px', padding: '4px 2px' } },
         h('div', { style: hintStyle }, t('note')),
+
+        h('section', { style: sectionStyle },
+          h('div', { style: titleStyle }, t('executor')),
+          h('div', { style: rowStyle },
+            h('input', {
+              type: 'checkbox',
+              checked: ptc,
+              disabled: !writable,
+              onChange: (event) => { save('ptc', event.target.checked) },
+            }),
+            h('span', { style: labelStyle }, t('ptc')),
+          ),
+          h('div', { style: hintStyle }, t('ptcHint')),
+        ),
 
         h('section', { style: sectionStyle },
           h('div', { style: titleStyle }, t('steward')),

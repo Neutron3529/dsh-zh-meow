@@ -55,6 +55,9 @@ test('管家：可读可搜、只写任务文件、带清理与探针工具', ()
   assert.match(steward, /name: 喵体中文·管家/)
   assert.match(steward, /order: 3/)
   assert.match(steward, /teamRole: steward/)
+  // PTC 的 run_code 能直接 import node:fs / node:child_process，会绕开管家的
+  // 「只写任务文件、不跑命令」边界，所以它必须固定原生模式。
+  assert.match(steward, /ptc: native/)
   // 前期细化任务要能自己确认路径、入口与既有约定。
   assert.match(steward, /read: true/)
   assert.match(steward, /readImage: false/)
@@ -123,4 +126,11 @@ test('校验者：只读 + 可跑命令，无写/编辑/子 agent', () => {
 test('五个 preset id 唯一', () => {
   const ids = [...patch.matchAll(/^\s+id: (zh-meow(?:-[a-z]+)?)$/gm)].map(match => match[1])
   assert.deepEqual(ids.sort(), ['zh-meow', 'zh-meow-coder', 'zh-meow-probe', 'zh-meow-steward', 'zh-meow-verifier'])
+})
+
+test('只有管家写死编码模式，其它 preset 跟随设置页开关', () => {
+  for (const [label, slice] of [['原版', original], ['码农', coder], ['探针', probe], ['校验者', verifier]]) {
+    assert.ok(!/^\s+ptc: (native|ptc)$/m.test(slice), `${label} preset 不应写死 ptc，必须跟随设置页`)
+  }
+  assert.match(steward, /^\s+ptc: native$/m)
 })

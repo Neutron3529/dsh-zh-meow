@@ -56,3 +56,15 @@ test('Host 入口是空插件，供裸包名 Loader 行使用', () => {
   assert.match(entry, /export const name = 'zh-meow-client-entry'/)
   assert.match(entry, /export function apply\(\) \{\}/)
 })
+
+test('设置页暴露 PTC 模式开关，配置服务默认开启', () => {
+  // 设置页：一个 checkbox，保存到 `ptc` 字段，并带上中英说明。
+  assert.match(client, /PTC 模式/)
+  assert.match(client, /save\('ptc', event\.target\.checked\)/)
+  assert.match(client, /const ptc = snapshot\.value\.ptc !== false/)
+  assert.match(client, /PTC mode/)
+
+  const config = readFileSync(join(root, 'plugin', 'team-config.js'), 'utf8')
+  assert.match(config, /ptc: z\.boolean\(\)\.default\(true\)\.volatile\(\)/, '默认开启且必须是 volatile 字段')
+  assert.match(config, /ptcMode\(\)/)
+})

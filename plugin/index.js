@@ -6,12 +6,19 @@
  *     `system-prompt/assemble` 瀑布；
  *   - 工具声明（顶层 description、参数字典里的 description），走本预设作用域
  *     自带的工具执行器：`describe()` 返回译文 schema，`execute()` 原样委托给
- *     原生执行器；
+ *     底层执行器（原生或 PTC）；
+ *   - PTC 模式（模型写 `run_code` 程序调工具）下的可见文本：`run_code` 的工具
+ *     与参数描述、`tools:ptc-only` 规则、生成的 TypeScript/Python SDK 声明及其
+ *     固定说明，译文表在 `data/ptc.json`；
  *   - 框架性英文（运行时上下文快照表头、工作目录/文件策略/审批/委派等上下文、
  *     工作区说明前言、skill 目录前言、目录变更通知、goal 轮次），走
  *     `data/frames.json` 的整句/正则替换表。运行时上下文在 `runtimeContext.project`
  *     入口翻译（它不经过 assemble），宿主生成的说明类消息在 `agent/pre-step`
  *     决策里改写，日志与请求因此保持一致。
+ *
+ * 执行器模式由「设置 → 喵体中文」里的 `ptc` 开关决定（默认开启 PTC）：每次组装
+ * 都重新读配置，所以保存后下一轮生效；宿主没有挂 PTC runtime 或 PTC 包加载失败时
+ * 自动退回原生模式，不会让预设挂载失败。
  *
  * 只改模型看得到的文字，不动任何标识符、枚举值、参数名与结构，
  * 所以工具的校验、调度、UI 呈现行为都保持原样。
@@ -56,10 +63,16 @@ export const inject = ['tools', 'systemPrompt']
  * @property {boolean} [translateSections] 是否翻译 system prompt 段落（默认 true）。
  * @property {boolean} [translateFrames] 是否翻译运行时上下文、工作区说明前言、skill 目录前言等框架文字（默认 true）。
  * @property {boolean} [translateTools] 是否翻译工具声明（默认 true）。开启时本预设作用域
- *   会装一个「只改描述」的执行器，执行仍委托给原生执行器；部署若改用 PTC 执行器，
- *   应把它关掉。
+ *   会装一个「只改描述」的执行器，执行仍委托给底层执行器；PTC 模式下还会翻译
+ *   `run_code` 与生成的 SDK。关掉时本插件不接管执行器，也就是说 PTC 模式不会生效。
  * @property {boolean} [reportUntranslated] 是否把没有译文的段落名/工具名写成漏翻自查报告（默认 false）。
+ * @property {string} [ptc] PTC 模式偏好：`inherit`（默认，跟随「设置 → 喵体中文」的开关）、
+ *   `ptc`（强制 PTC）、`native`（强制原生）。管家这类没有命令工具的角色必须用 `native`：
+ *   PTC 的 Node 程序能直接读写文件、跑子进程，会绕开它的「只写任务文件、不跑命令」边界。
  */
+
+/** PTC 模式偏好的合法取值。 */
+const PTC_PREFERENCES = new Set(['inherit', 'ptc', 'native'])
 
 /** 配置字段：名称、期望类型与默认值。 */
 const CONFIG_FIELDS = [
@@ -70,6 +83,7 @@ const CONFIG_FIELDS = [
   { name: 'translateTools', type: 'boolean', fallback: true },
   { name: 'reportUntranslated', type: 'boolean', fallback: false },
   { name: 'teamRole', type: 'string', fallback: '' },
+  { name: 'ptc', type: 'string', fallback: 'inherit' },
 ]
 
 /** 团队角色：空字符串表示这套 preset 不启用团队协议。 */
@@ -108,6 +122,9 @@ export const Config = {
         }
         if (field.name === 'teamRole' && raw.length > 0 && !TEAM_ROLES.has(raw)) {
           return { issues: [{ message: `zh-meow-localizer: config.teamRole must be one of ${[...TEAM_ROLES].join(', ')}` }] }
+        }
+        if (field.name === 'ptc' && !PTC_PREFERENCES.has(raw)) {
+          return { issues: [{ message: `zh-meow-localizer: config.ptc must be one of ${[...PTC_PREFERENCES].join(', ')}` }] }
         }
         out[field.name] = raw
       }
@@ -167,7 +184,7 @@ const SELF_OWNED_NAMES = new Set(['subagent_coder', 'subagent_verifier', 'subage
 function writeReport(untranslated, logger, teamRole) {
   /** 把 name → 原文片段 的表转成排好序的数组。 */
   const rows = table => [...table]
-    .filter(([name]) => !name.startsWith('meow:') && !SELF_OWNED_NAMES.has(name))
+    .filter(([name]) => !name.startsWith('meow:') && !SELF_OWNED_NAMES.has(name) && !SELF_OWNED_SECTIONS.has(name))
     .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
     .map(([name, sample]) => ({ name, sample, looksChinese: CJK.test(sample) }))
   const body = `${JSON.stringify({
@@ -258,6 +275,25 @@ export function renderVerifierList(verifiers, hasService) {
 /** 框架性英文替换表：运行时上下文、工作区说明前言、skill 目录前言、通知与 goal 轮次。 */
 const FRAMES_FILE = 'frames.json'
 
+/**
+ * PTC 模式译文表：`run_code` 工具描述、SDK 固定说明与提权指引。
+ *
+ * 单独一个文件（而不是塞进 `sections.json` / 工具文件）有两个原因：这些文本是
+ * PTC 执行器在运行时拼出来的，不属于任何注册段落或工具；而且译文表要用
+ * 「英文整句 → 中文」的替换形式，和 `frames.json` 同构。
+ */
+const PTC_FILE = 'ptc.json'
+
+/** PTC 模式专属段落名：`tools:ptc-only` 是「只能调 run_code」的规则，`tools:sdk` 是生成的 SDK。 */
+const PTC_ONLY_SECTION = 'tools:ptc-only'
+const SDK_SECTION = 'tools:sdk'
+
+/** 插件自己产出的两个 PTC 段落：原文已经是中文，不进漏翻报告。 */
+const SELF_OWNED_SECTIONS = new Set([PTC_ONLY_SECTION, SDK_SECTION])
+
+/** PTC 模式下唯一直接可调的工具名。 */
+const RUN_CODE_TOOL = 'run_code'
+
 /** 模型消息里允许被改写 `source.kind`：都是宿主生成的框架文字，不是用户正文。 */
 const FRAMED_MESSAGE_SOURCES = new Set([
   'agent-instructions',
@@ -273,6 +309,63 @@ const patchedAgents = new WeakSet()
 
 /** 解析好的替换表缓存。 */
 let framesCache
+
+/** 解析好的 PTC 替换表缓存。 */
+let ptcCache
+
+/**
+ * 把一份替换表数据解析成可执行的规则。
+ *
+ * `frames.json` 与 `ptc.json` 共用这套格式：整句用 `phrases` 精确替换，带动态值
+ * （路径、URL、轮次、超时数字）的句子用 `patterns`，`$1` 引用捕获组。写坏的
+ * 正则只跳过那一条，不牵连整张表。
+ * @param {unknown} parsed - 已解析的 JSON 数据。
+ * @returns {{ phrases: Array<{ en: string, zh: string }>, patterns: Array<{ regex: RegExp, zh: string }> }} 规则表。
+ */
+export function parseReplacements(parsed) {
+  if (!isPlainObject(parsed)) return { phrases: [], patterns: [] }
+  const phrases = (Array.isArray(parsed.phrases) ? parsed.phrases : [])
+    .filter(rule => isPlainObject(rule) && typeof rule.en === 'string' && rule.en.length > 0 && typeof rule.zh === 'string')
+    .map(rule => ({ en: rule.en, zh: rule.zh }))
+  const patterns = (Array.isArray(parsed.patterns) ? parsed.patterns : []).flatMap((rule) => {
+    if (!isPlainObject(rule) || typeof rule.pattern !== 'string' || typeof rule.zh !== 'string') return []
+    try {
+      return [{ regex: new RegExp(rule.pattern, typeof rule.flags === 'string' ? rule.flags : 'u'), zh: rule.zh }]
+    } catch {
+      // 写坏的正则只跳过这一条，别牵连整张表。
+      return []
+    }
+  })
+  return { phrases, patterns }
+}
+
+/**
+ * 读入 PTC 模式替换表。
+ *
+ * 结构：`{ ptcOnly: string, phrases: [...], patterns: [...] }`。文件缺失或坏掉时
+ * 返回空表：PTC 文本保持英文，但执行器照常工作。
+ * @returns {{ ptcOnly: string, phrases: object[], patterns: object[] }} PTC 替换表。
+ */
+export function loadPtcTable() {
+  if (ptcCache !== undefined) return ptcCache
+  const empty = { ptcOnly: '', phrases: [], patterns: [] }
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(join(DATA_DIR, PTC_FILE), 'utf8'))
+  } catch {
+    ptcCache = empty
+    return empty
+  }
+  if (!isPlainObject(parsed)) {
+    ptcCache = empty
+    return empty
+  }
+  ptcCache = {
+    ptcOnly: typeof parsed.ptcOnly === 'string' ? parsed.ptcOnly : '',
+    ...parseReplacements(parsed),
+  }
+  return ptcCache
+}
 
 /**
  * 读入框架性英文替换表。
@@ -297,18 +390,7 @@ export function loadFrames() {
     framesCache = empty
     return empty
   }
-  const phrases = (Array.isArray(parsed.phrases) ? parsed.phrases : [])
-    .filter(rule => isPlainObject(rule) && typeof rule.en === 'string' && rule.en.length > 0 && typeof rule.zh === 'string')
-    .map(rule => ({ en: rule.en, zh: rule.zh }))
-  const patterns = (Array.isArray(parsed.patterns) ? parsed.patterns : []).flatMap((rule) => {
-    if (!isPlainObject(rule) || typeof rule.pattern !== 'string' || typeof rule.zh !== 'string') return []
-    try {
-      return [{ regex: new RegExp(rule.pattern, typeof rule.flags === 'string' ? rule.flags : 'u'), zh: rule.zh }]
-    } catch {
-      // 写坏的正则只跳过这一条，别牵连整张表。
-      return []
-    }
-  })
+  const { phrases, patterns } = parseReplacements(parsed)
   const skills = {}
   if (isPlainObject(parsed.skills)) {
     for (const [name, description] of Object.entries(parsed.skills)) {
@@ -436,8 +518,11 @@ export function loadTranslations() {
   const sections = {}
   let names = []
   try {
-    // frames.json 是框架性英文的替换表，不是段落/工具译文，走 loadFrames()。
-    names = readdirSync(DATA_DIR).filter(file => file.endsWith('.json') && file !== FRAMES_FILE).sort()
+    // frames.json 是框架性英文的替换表，ptc.json 是 PTC 模式替换表，都不是
+    // 段落/工具译文，走各自的加载函数。
+    names = readdirSync(DATA_DIR)
+      .filter(file => file.endsWith('.json') && file !== FRAMES_FILE && file !== PTC_FILE)
+      .sort()
   } catch {
     return { tools, sections }
   }
@@ -703,6 +788,173 @@ export function createTranslatingExecutor(native, toolTable, suffix = '', onDesc
 }
 
 /**
+ * 递归改写 schema 里每个 `description`。
+ *
+ * 只碰 `description` 这个键：`type`、`required`、`enum` 取值、`const` 与结构字段
+ * 一律原样保留，数组里的元素按位置递归（元素本身是字符串时不处理，避免把枚举
+ * 取值当成描述翻掉）。
+ * @param {unknown} node - 当前 schema 节点（或子节点）。
+ * @param {(text: string) => string} transform - 单条描述的改写函数。
+ * @returns 改写后的新值；无改动时返回原值。
+ */
+function mapSchemaDescriptions(node, transform) {
+  if (Array.isArray(node)) {
+    let changed = false
+    const next = node.map((item) => {
+      const mapped = mapSchemaDescriptions(item, transform)
+      if (mapped !== item) changed = true
+      return mapped
+    })
+    return changed ? next : node
+  }
+  if (!isPlainObject(node)) return node
+  /** @type {Record<string, unknown>} */
+  const out = {}
+  let changed = false
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'description' && typeof value === 'string') {
+      const mapped = transform(value)
+      out[key] = mapped
+      if (mapped !== value) changed = true
+      continue
+    }
+    const mapped = mapSchemaDescriptions(value, transform)
+    out[key] = mapped
+    if (mapped !== value) changed = true
+  }
+  return changed ? out : node
+}
+
+/**
+ * 翻译 PTC 的 `run_code` schema。
+ *
+ * `run_code` 的描述由执行器在运行时拼出来（语言 flavor + runtime 执行说明 +
+ * 目录规则 + 提权指引），所以译文走 `data/ptc.json` 的整句替换，而不是静态字段。
+ * 参数描述同理：`code` / `description` / `timeoutMs` / `sandbox_permissions` /
+ * `justification` 各是一句固定文本（超时那句带动态默认值与上限，用正则）。
+ * @param {{ name: string, description: string, parameters: unknown }} schema - 执行器给出的 `run_code` schema。
+ * @param {{ phrases: object[], patterns: object[] }} ptcTable - PTC 替换表。
+ * @param {string} [suffix] - 追加到顶层描述末尾的标记。
+ * @returns 改写后的 schema；没有命中译文时返回原对象。
+ */
+export function translatePtcSchema(schema, ptcTable, suffix = '') {
+  if (!isPlainObject(schema)) return schema
+  const original = schema.description
+  const mapped = typeof original === 'string' ? applyFrames(original, ptcTable) : original
+  // 与原生分支一致：只有真的换过描述才追加标记，没命中译文的描述保持原样。
+  const description = typeof mapped === 'string' && mapped !== original && suffix.length > 0 ? `${mapped}${suffix}` : mapped
+  const parameters = mapSchemaDescriptions(schema.parameters, text => applyFrames(text, ptcTable))
+  if (description === schema.description && parameters === schema.parameters) return schema
+  return { ...schema, description, parameters }
+}
+
+/**
+ * 渲染中文的 PTC SDK 声明。
+ *
+ * 先按工具译文表改写每个定义的描述，再交给上游的 SDK 渲染器：这样生成的
+ * TypeScript/Python 声明与真实绑定完全同构，只有描述是中文。渲染完再用
+ * `data/ptc.json` 把固定说明句子（`## Writing code for run_code`、调用规则、
+ * bash 示例引导等）换成中文。
+ * @param {readonly object[]} definitions - 本步可见的工具定义。
+ * @param {{ render: (schemas: object[]) => string, ptcTable: object, toolTable: Record<string, unknown>, suffix: string, onDescribe?: (untranslated: Map<string, string>) => void }} options - 渲染器与译文表。
+ * @returns 中文 SDK 段落文本。
+ */
+export function renderLocalizedSdk(definitions, options) {
+  const { render, ptcTable, toolTable, suffix, onDescribe } = options
+  const untranslated = new Map()
+  const schemas = definitions.map((definition) => {
+    if (definition.description.length > 0 && toolTable[definition.name] === undefined) {
+      untranslated.set(definition.name, definition.description.slice(0, 120))
+    }
+    const projected = translateToolSchema(projectDefinition(definition), toolTable[definition.name], suffix)
+    return { ...projected, output: definition.output?.schema }
+  })
+  onDescribe?.(untranslated)
+  return applyFrames(render(schemas), ptcTable)
+}
+
+/**
+ * 主人是否想要 PTC 模式。
+ *
+ * 设置服务不可用或配置读不出来时按默认（开启）处理：模式开关是个优化项，
+ * 不该因为设置页故障把工具换掉。
+ * @param {{ get?: (name: string) => unknown }} ctx - 预设作用域上下文。
+ * @returns true 表示优先 PTC；false 表示主人明确关掉。
+ */
+export function prefersPtc(ctx) {
+  const service = typeof ctx.get === 'function' ? ctx.get('meowTeam') : undefined
+  if (!isPlainObject(service) || typeof service.ptcMode !== 'function') return true
+  try {
+    return service.ptcMode() !== false
+  } catch {
+    return true
+  }
+}
+
+/**
+ * 解析当前该用哪种执行器。
+ *
+ * 每次调用都重新读设置服务的 volatile 引用，所以「设置 → 喵体中文」里切换
+ * PTC 开关后，下一轮组装就会换执行器。PTC 包或 runtime 不可用时退回原生模式：
+ * 模式开关是主人的意愿，能不能兑现由宿主能力决定。
+ * @param {{ get?: (name: string) => unknown }} ctx - 预设作用域上下文。
+ * @param {boolean} ptcReady - PTC 执行器与 SDK 渲染器是否加载成功。
+ * @param {'inherit' | 'ptc' | 'native'} [preference] - preset 级偏好；`native` 强制原生（管家用这个）。
+ * @returns {'ptc' | 'native'} 当前模式。
+ */
+export function resolveExecutorMode(ctx, ptcReady, preference = 'inherit') {
+  if (preference === 'native') return 'native'
+  const wantsPtc = preference === 'ptc' ? true : prefersPtc(ctx)
+  if (!wantsPtc || !ptcReady) return 'native'
+  if (typeof ctx.get === 'function' && ctx.get('ptcRuntime') === undefined) return 'native'
+  return 'ptc'
+}
+
+/**
+ * 造一个双模式执行器：PTC 模式下暴露 `run_code` 与中文 SDK，原生模式下直接
+ * 暴露中文工具声明。两种模式共用同一个实例，所以设置页切换开关时不需要重装
+ * 执行器，也不会撞上「每个作用域只允许一个执行器」的限制。
+ *
+ * 选路发生在每次 `describe()`、`execute()` 与段落渲染时，而不是构造时；PTC
+ * 执行器本身也按需创建，避免在 runtime 尚未挂载的启动阶段就失败。
+ * @param {{ resolveMode: () => 'ptc' | 'native', native: { describe: Function, execute: Function }, getPtc?: () => ({ describe: Function, execute: Function } | undefined), ptcTable: object, toolTable: Record<string, unknown>, suffix: string, renderSdk: (definitions: readonly object[]) => string, sectionOrder: (name: string) => number, onDescribe?: (untranslated: Map<string, string>) => void }} options - 执行器、译文表与渲染入口。
+ * @returns 可直接交给 `ctx.tools.setExecutor()` 的执行器。
+ */
+export function createModeExecutor(options) {
+  const { resolveMode, native, getPtc, ptcTable, toolTable, suffix, renderSdk, sectionOrder, onDescribe } = options
+  const translatingNative = createTranslatingExecutor(native, toolTable, suffix, onDescribe)
+  /** 当前真正生效的 PTC 执行器；模式为 native 时恒为 undefined。 */
+  const activePtc = () => resolveMode() === 'ptc' ? getPtc?.() : undefined
+  return {
+    // 两个 PTC 段落常驻注册：原生模式下文本为空串，`renderPrompt` 会把空段落
+    // 过滤掉；这样切换模式不需要增删段落（提示词前缀因此更稳定）。
+    sections: [
+      {
+        name: PTC_ONLY_SECTION,
+        order: sectionOrder(PTC_ONLY_SECTION),
+        interpolate: false,
+        text: () => activePtc() === undefined ? '' : ptcTable.ptcOnly,
+      },
+      {
+        name: SDK_SECTION,
+        order: sectionOrder(SDK_SECTION),
+        interpolate: false,
+        text: definitions => activePtc() === undefined ? '' : renderSdk(definitions),
+      },
+    ],
+    describe(definitions) {
+      const ptc = activePtc()
+      if (ptc === undefined) return translatingNative.describe(definitions)
+      const input = ptc.describe(definitions)
+      return { ...input, schemas: input.schemas.map(schema => translatePtcSchema(schema, ptcTable, suffix)) }
+    },
+    execute(input) {
+      return (activePtc() ?? native).execute(input)
+    },
+  }
+}
+
+/**
  * 按预设 Loader 的解析基准加载一个包。
  *
  * 插件文件位于 bundle 目录（例如 `D:\zh-meow`），裸包名按 Node 默认规则解析不到
@@ -743,24 +995,122 @@ async function loadNativeExecutor(ctx) {
 }
 
 /**
- * 在预设作用域里装好「只改描述」的执行器。
+ * 加载 PTC 工具执行器与 SDK 渲染器。
  *
- * 失败不影响预设挂载：拿不到原生执行器或该作用域已有执行器时只记一条警告，
- * 段落翻译照常工作。
+ * 这是「可选能力」：旧版 DSH 或精简部署里可能根本没有这个包。加载失败不是
+ * 错误，只是让模式解析退回原生执行器。
+ * @param {import('@deepseek-ai/cordis').Context} ctx - 预设作用域上下文。
+ * @returns `{ PtcExecutor, renderToolsSdk, renderToolsSdkPy }`；缺任意一项时返回 undefined。
+ */
+async function loadPtcModules(ctx) {
+  const mod = await importHostPackage(ctx, '@deepseek-ai/dsh-tool-executor-ptc')
+  if (typeof mod?.PtcExecutor !== 'function') return undefined
+  if (typeof mod.renderToolsSdk !== 'function' || typeof mod.renderToolsSdkPy !== 'function') return undefined
+  return { PtcExecutor: mod.PtcExecutor, renderToolsSdk: mod.renderToolsSdk, renderToolsSdkPy: mod.renderToolsSdkPy }
+}
+
+/**
+ * 在预设作用域里装好「只改描述」的双模式执行器。
+ *
+ * 原生执行器是硬依赖：拿不到就不接管，工具描述保持原文。PTC 执行器是软依赖：
+ * 加载失败或 runtime 缺失时自动退回原生模式，只记一条警告。
+ * 失败都不影响预设挂载：段落翻译照常工作。
  * @param {import('@deepseek-ai/cordis').Context} ctx - 预设作用域上下文。
  * @param {Record<string, unknown>} toolTable - 工具译文表。
  * @param {string} suffix - 追加到描述末尾的标记。
  * @param {(untranslated: Map<string, string>) => void} onDescribe - 报告本批漏翻工具。
+ * @param {'inherit' | 'ptc' | 'native'} [ptcPreference] - preset 级 PTC 偏好；管家传 `native`。
  * @returns 无。
  */
-async function installToolTranslator(ctx, toolTable, suffix, onDescribe) {
+async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPreference = 'inherit') {
   if (Object.keys(toolTable).length === 0) return
   if (typeof ctx.tools?.setExecutor !== 'function') return
   const NativeToolExecutor = await loadNativeExecutor(ctx)
   if (NativeToolExecutor === undefined) return
+  // 强制原生模式的 preset（管家）不需要 PTC 包：省掉一次 import，也不会误报降级警告。
+  const ptcModules = ptcPreference === 'native' ? undefined : await loadPtcModules(ctx)
+  const ptcTable = loadPtcTable()
+  /** 懒创建：runtime 可能比预设晚挂载，构造失败就永久退回原生模式。 */
+  let ptcExecutor
+  let ptcFailed = false
+  /** PTC 降级提示只打一次，避免每轮组装都刷日志。 */
+  let warnedFallback = false
+
+  const resolveMode = () => {
+    const mode = resolveExecutorMode(ctx, ptcModules !== undefined, ptcPreference)
+    const wantsPtc = ptcPreference === 'ptc' || (ptcPreference === 'inherit' && prefersPtc(ctx))
+    if (mode === 'native' && ptcModules !== undefined && !warnedFallback && wantsPtc) {
+      warnedFallback = true
+      ctx.logger?.warn?.('zh-meow-localizer: 没有可用的 PTC runtime，PTC 模式退回原生执行器')
+    }
+    return mode
+  }
+
+  /**
+   * 渲染中文 SDK 段落。
+   * @param {readonly object[]} definitions - 本步可见的工具定义。
+   * @returns SDK 段落文本；runtime 缺失或语言不支持时返回空串。
+   */
+  const renderSdk = (definitions) => {
+    if (ptcModules === undefined) return ''
+    const runtime = typeof ctx.get === 'function' ? ctx.get('ptcRuntime') : undefined
+    if (!isPlainObject(runtime)) return ''
+    const render = runtime.language === 'python'
+      ? schemas => ptcModules.renderToolsSdkPy(schemas)
+      : schemas => ptcModules.renderToolsSdk(schemas, runtime.programFormat)
+    try {
+      return renderLocalizedSdk(definitions, { render, ptcTable, toolTable, suffix, onDescribe })
+    } catch (error) {
+      ctx.logger?.warn?.('zh-meow-localizer: 渲染中文 PTC SDK 失败，本段保留原文', error)
+      return ''
+    }
+  }
+
+  /** 懒创建 PTC 执行器；失败时降级为原生模式。 */
+  const getPtc = () => {
+    if (ptcModules === undefined || ptcFailed) return undefined
+    if (ptcExecutor !== undefined) return ptcExecutor
+    try {
+      ptcExecutor = new ptcModules.PtcExecutor(ctx)
+      return ptcExecutor
+    } catch (error) {
+      ptcFailed = true
+      ctx.logger?.warn?.('zh-meow-localizer: PTC 执行器初始化失败，改用原生执行器', error)
+      return undefined
+    }
+  }
+
+  /**
+   * 取 PTC 段落的固定顺序。
+   *
+   * 常量由上游 `systemPrompt` 拥有：拿不到时退回 PTC 模式公开的顺序值，并夹在
+   * 合法数字上——顺序错只是段落位置偏一点，比整个执行器注册失败好得多。
+   * @param {string} name - 段落名。
+   * @returns 有限数字顺序。
+   */
+  const sectionOrder = (name) => {
+    try {
+      const order = ctx.systemPrompt.getSectionOrder(name)
+      if (Number.isFinite(order)) return order
+    } catch {
+      // 旧版宿主没有这两个常量，走下面的默认值。
+    }
+    return name === PTC_ONLY_SECTION ? 800 : 5000
+  }
+
   try {
     const native = new NativeToolExecutor(ctx)
-    ctx.tools.setExecutor(createTranslatingExecutor(native, toolTable, suffix, onDescribe))
+    ctx.tools.setExecutor(createModeExecutor({
+      resolveMode,
+      native,
+      getPtc,
+      ptcTable,
+      toolTable,
+      suffix,
+      renderSdk,
+      sectionOrder,
+      onDescribe,
+    }))
   } catch (error) {
     ctx.logger?.warn?.('zh-meow-localizer: 安装工具描述执行器失败，工具描述保持原文', error)
   }
@@ -856,6 +1206,6 @@ export async function apply(ctx, config = {}) {
   if (translateTools) {
     await installToolTranslator(ctx, toolTable, suffix, (report) => {
       untranslatedTools = report
-    })
+    }, typeof config.ptc === 'string' ? config.ptc : 'inherit')
   }
 }

@@ -1,0 +1,149 @@
+{
+  "ptcOnly": "`run_code` 是唯一可以直接调用的工具喵：直接调其它任何工具都会失败；下面 SDK 里声明的每个工具都要在程序内部调用。",
+  "phrases": [
+    {
+      "en": "Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return is program output — curate it. Image-bearing subtool results are attached after the run.",
+      "zh": "执行一段 TypeScript 程序来调用可用的工具喵。需要两个必填参数：`code` 是 async 函数的主体（只接受可擦除语法；顶层 `await` 和 `return` 都能用），`description` 是这段程序做什么的简短说明。按系统提示词里的声明，用 `await tools.name(args)` 调工具。只有你打印或返回的内容才算程序输出，所以要自己挑出需要的部分。带图片的子工具结果会在程序结束后附上。"
+    },
+    {
+      "en": "Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the program to execute, and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Curate the program output. Image-bearing subtool results are attached after the run.",
+      "zh": "执行一段 TypeScript 程序来调用可用的工具喵。需要两个必填参数：`code` 是要执行的程序，`description` 是这段程序做什么的简短说明。按系统提示词里的声明，用 `await tools.name(args)` 调工具。程序输出要自己精选。带图片的子工具结果会在程序结束后附上。"
+    },
+    {
+      "en": "Execute a Python program against the available tools. Takes two required arguments: `code`, the program to execute, and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Curate the program output. Image-bearing subtool results are attached after the run.",
+      "zh": "执行一段 Python 程序来调用可用的工具喵。需要两个必填参数：`code` 是要执行的程序，`description` 是这段程序做什么的简短说明。按系统提示词里的声明，用 `await tools.name(args)` 调工具。程序输出要自己精选。带图片的子工具结果会在程序结束后附上。"
+    },
+    {
+      "en": "The program is the body of an async TypeScript function; only erasable syntax is accepted, with no enum or namespaces. Type annotations are advisory. Top-level await and return are supported. Emit output with console.log(...) or return a lossless JSON value. Only printed values and the returned value become program output. Each call runs in a fresh Node process. Node APIs are available through await import(...). Relative paths use the supplied working directory; process.env starts empty. Direct filesystem access follows this execution's sandbox policy.",
+      "zh": "程序是 async TypeScript 函数的主体；只接受可擦除语法，不能用 enum 或 namespace。类型标注只是参考。支持顶层 await 和 return。用 console.log(...) 输出，或者 return 一个无损 JSON 值。只有打印出来的值和返回值会成为程序输出。每次调用都跑在一个全新的 Node 进程里。Node API 通过 await import(...) 使用。相对路径以本次执行的工作目录为基准；process.env 初始为空。直接访问文件系统受本次执行的 sandbox 策略约束。"
+    },
+    {
+      "en": "The program contains TypeScript REPL statements; only erasable syntax is accepted, with no enum or namespaces. Type annotations are advisory. Top-level declarations and await are supported; top-level return is not supported. Emit output with console.log(...) or a final lossless JSON expression. Only printed values and that final expression become program output. Variables, functions, and imported modules remain in memory for this Agent across calls. Use await import(...) for modules. Direct filesystem access follows this execution's sandbox policy; process.env starts empty.",
+      "zh": "程序由 TypeScript REPL 语句组成；只接受可擦除语法，不能用 enum 或 namespace。类型标注只是参考。支持顶层声明和 await；顶层 return 不支持。用 console.log(...) 输出，或者用一个最后的无损 JSON 表达式收尾。只有打印出来的值和那个最后的表达式会成为程序输出。变量、函数和已导入的模块会在这个 agent 的多次调用之间保留在内存里。模块用 await import(...) 引入。直接访问文件系统受本次执行的 sandbox 策略约束；process.env 初始为空。"
+    },
+    {
+      "en": "The program contains TypeScript script statements; only erasable syntax is accepted, with no enum or namespaces. Type annotations are advisory. Top-level declarations and await are supported; top-level return is not supported. Emit output with console.log(...) or a final lossless JSON expression. The final expression is awaited if it is a Promise. Only printed values and that final expression become program output.",
+      "zh": "程序由 TypeScript script 语句组成；只接受可擦除语法，不能用 enum 或 namespace。类型标注只是参考。支持顶层声明和 await；顶层 return 不支持。用 console.log(...) 输出，或者用一个最后的无损 JSON 表达式收尾。最后的表达式是 Promise 时会 await 它。只有打印出来的值和那个最后的表达式会成为程序输出。"
+    },
+    {
+      "en": "Variables, functions, and imported modules remain in memory for this Agent across calls.",
+      "zh": "变量、函数和已导入的模块会在这个 agent 的多次调用之间保留在内存里。"
+    },
+    {
+      "en": "Each call runs in a fresh Node process.",
+      "zh": "每次调用都跑在一个全新的 Node 进程里。"
+    },
+    {
+      "en": "Use await import(...) for modules. Relative paths use the supplied working directory. Direct filesystem access follows this execution's sandbox policy; process.env starts empty.",
+      "zh": "模块用 await import(...) 引入。相对路径以本次执行的工作目录为基准。直接访问文件系统受本次执行的 sandbox 策略约束；process.env 初始为空。"
+    },
+    {
+      "en": "Await asynchronous work: an uncaught callback exception or unhandled rejection terminates the process",
+      "zh": "要 await 异步工作：未捕获的回调异常或未处理的 rejection 会终止进程"
+    },
+    {
+      "en": " and clears its variables.",
+      "zh": "，并清掉它的变量。"
+    },
+    {
+      "en": "Values from bindings and imports can belong to another realm; use Array.isArray for arrays and the supplied binding error classes for failures, because instanceof Array or Error may be false.",
+      "zh": "绑定和 import 进来的值可能来自另一个 realm；判断数组用 Array.isArray、判断失败用提供的绑定错误类，因为 instanceof Array 或 Error 可能是 false。"
+    },
+    {
+      "en": "Changing the session sandbox mode clears retained variables. An approved sandbox escalation runs in a separate temporary environment: it cannot access retained variables, and its declarations are discarded afterward. Restart, Agent disposal, cancellation, timeout, output overflow, or process failure clears the environment. If a variable is undefined, recreate it and reacquire its resources. State is not restored from the conversation, and failed evaluations can leave earlier mutations in memory. Redeclaring an existing let, const, or class name fails; assign to a mutable binding or use a new name. Await all tool calls; background callbacks cannot call tools after their evaluation ends. Await child-process completion before ending an evaluation; raw subprocess output belongs to whichever evaluation is active when it arrives.",
+      "zh": "改变会话的 sandbox 模式会清掉保留的变量。获批的 sandbox 提权跑在单独的临时环境里：它读不到保留的变量，它声明的变量事后也会丢弃。重启、agent 释放、取消、超时、输出超限或进程失败都会清掉环境。变量是 undefined 时，重新创建它、重新获取它占用的资源。状态不会从对话里恢复，失败的计算也可能留下之前的改动。重复声明已有的 let、const 或 class 名字会失败；改成给一个可变绑定赋值，或者换个新名字。所有工具调用都要 await；后台回调在它们的求值结束后就不能再调工具了。结束一次求值前先 await 子进程完成；原始子进程输出归属于它到达时正在进行的那个求值。"
+    },
+    {
+      "en": "If a native top-level let, const, or class initializer throws, its name may remain permanently uninitialized; use a new name or restart the environment.",
+      "zh": "如果顶层的原生 let、const 或 class 初始化器抛错，它的名字可能永久保持未初始化；换个新名字，或者重启环境。"
+    },
+    {
+      "en": "The program: the body of an async TypeScript function.",
+      "zh": "程序本体：一段 async TypeScript 函数的主体。"
+    },
+    {
+      "en": "The TypeScript program to execute, following this tool's execution instructions.",
+      "zh": "要执行的 TypeScript 程序，按本工具的执行说明来写。"
+    },
+    {
+      "en": "The Python program to execute, following this tool's execution instructions.",
+      "zh": "要执行的 Python 程序，按本工具的执行说明来写。"
+    },
+    {
+      "en": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\".",
+      "zh": "用主动语态写一条清楚、简洁的说明：这段程序做什么，5-10 个词（会显示在 UI 里）。示例：\"Count TODO markers across packages\"；\"Read failing test and its fixture\"；\"Rename config key in every cordis.yml\"。"
+    },
+    {
+      "en": "Wider sandbox mode for this complete program execution; requires justification and approval.",
+      "zh": "这次完整程序执行要用的更宽 sandbox 模式；必须有 justification 并获批准。"
+    },
+    {
+      "en": "Reason this complete program needs wider access, shown to the user for approval. Use the language of the user’s current request.",
+      "zh": "为什么这次完整程序需要更宽的访问权限（会展示给主人审批）。用主人当前请求所用的语言写。"
+    },
+    {
+      "en": "Each program starts in the Session's current directory. Running programs keep their initial directory.",
+      "zh": "每段程序都从会话当前目录开始跑；已经开始跑的程序保持它最初的目录。"
+    },
+    {
+      "en": "A sandbox escalation approves this complete program for one execution only. Nested tools retain their own policies and approvals. Request wider access only after evidence of a denial. Earlier effects may already have completed: inspect them before explicitly retrying. Programs are never replayed automatically.",
+      "zh": "sandbox 提权只对这一次完整程序执行生效。嵌套工具仍保留各自的策略与审批。只有在确凿遇到拒绝之后才申请更宽的权限。之前的效果可能已经发生了：显式重试前先检查。程序永远不会被自动重放。"
+    },
+    {
+      "en": "## Writing code for run_code",
+      "zh": "## 给 run_code 写代码"
+    },
+    {
+      "en": "`run_code` takes two required arguments: `code`, the body of an async TypeScript function (erasable syntax only — no `enum` or namespaces; type annotations are advisory, the code runs type-stripped), and `description`, a short summary of what the program does. The declarations below are SDK bindings for this program. A declaration does not make its name a directly callable tool; only names supplied as separate tool schemas may be called directly.",
+      "zh": "`run_code` 需要两个必填参数：`code` 是 async TypeScript 函数的主体（只接受可擦除语法——不能用 `enum` 或 namespace；类型标注只是参考，代码会先擦掉类型再跑），`description` 是这段程序做什么的简短说明。下面的声明是这段程序的 SDK 绑定。声明本身不会让某个名字变成可以直接调用的工具；只有作为独立工具 schema 提供的名字才能直接调。"
+    },
+    {
+      "en": "`run_code` takes two required arguments: `code`, the program to execute, and `description`, a short summary of what the program does. The declarations below are SDK bindings for this program. A declaration does not make its name a directly callable tool; only names supplied as separate tool schemas may be called directly.",
+      "zh": "`run_code` 需要两个必填参数：`code` 是要执行的程序，`description` 是这段程序做什么的简短说明。下面的声明是这段程序的 SDK 绑定。声明本身不会让某个名字变成可以直接调用的工具；只有作为独立工具 schema 提供的名字才能直接调。"
+    },
+    {
+      "en": "Inside the program:",
+      "zh": "在程序里："
+    },
+    {
+      "en": "- Call tools as `await tools.name(args)` — quoted access for exotic names: `tools[\"my-tool\"](args)`. Every call resolves to the tool's typed canonical JSON value. Tool arguments must be lossless JSON.",
+      "zh": "- 用 `await tools.name(args)` 调工具——名字特殊时用带引号的写法：`tools[\"my-tool\"](args)`。每次调用都解析成该工具的类型化规范 JSON 值。工具参数必须是无损 JSON。"
+    },
+    {
+      "en": "- A FAILED tool call rejects with `ToolCallError`, whose `toolName` identifies the failed tool and whose `message` is human-readable — `try/catch` it to handle and continue.",
+      "zh": "- 失败的工具调用会以 `ToolCallError` reject，它的 `toolName` 指出是哪个工具失败，`message` 是给人看的说明——用 `try/catch` 接住它就能继续往下走。"
+    },
+    {
+      "en": "- Independent read-only calls MAY overlap under `Promise.all` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with `await`.",
+      "zh": "- 互相独立的只读调用可以用 `Promise.all` 并发（并行安全的调用同时跑；会改东西的调用单独跑，按提交顺序）。有依赖的工作用 `await` 串起来。"
+    },
+    {
+      "en": "- Emit results with `return` and/or `console.log(...)`. Only what you print or return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.",
+      "zh": "- 用 `return` 和/或 `console.log(...)` 给出结果。只有你打印或返回的内容才算程序输出。带图片的成功工具结果会在程序跑完后附上，方便你在下一步查看；其它中间结果都不会进对话，所以只挑需要的部分出来。"
+    },
+    {
+      "en": "Only values emitted as program output enter the conversation.",
+      "zh": "只有作为程序输出发出的值才会进对话。"
+    },
+    {
+      "en": "Program-only SDK bindings:",
+      "zh": "只在这个程序里可用的 SDK 绑定："
+    },
+    {
+      "en": "When no separate `bash` schema is supplied, invoke a declared `bash` binding inside `run_code`:",
+      "zh": "没有单独提供 `bash` schema 时，在 `run_code` 里调用已声明的 `bash` 绑定："
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "Positive elapsed-time budget in milliseconds, including nested tool and approval waits\\. Default (\\d+); capped at (\\d+)\\. Zero does not disable the deadline\\.",
+      "flags": "u",
+      "zh": "包含嵌套工具与审批等待的耗时预算（毫秒）。默认 $1，上限 $2。填 0 不会关掉截止时间。"
+    },
+    {
+      "pattern": "Positive elapsed-time budget in milliseconds, capped by the deployment maximum\\.",
+      "flags": "u",
+      "zh": "耗时预算（毫秒），受部署上限约束。"
+    }
+  ]
+}

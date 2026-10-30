@@ -6,6 +6,9 @@
  * `ctx.configForms.get('meow-team-config')` 读写这里声明的 volatile 字段。
  *
  * 字段语义：
+ *   - `ptc` 决定喵体中文用哪种工具执行器：`true`（默认）走 PTC 模式，模型写
+ *     `run_code` 程序来调工具；`false` 走原生模式，模型直接逐个调工具。
+ *     宿主没有挂 PTC runtime 时自动退回原生模式。
  *   - `model` 留空（空字符串）= 继承父 agent 的模型；否则写成 `provider/model`。
  *   - `effort` 留空 = 继承父 agent 的思考强度；否则是 `off` / `low` / `high` /
  *     `max`（或模型自己声明的值）。
@@ -38,6 +41,7 @@ const Verifier = z.object({
 
 /** 插件配置 schema：volatile 字段才能在设置页即时编辑并立即生效。 */
 export const Config = z.object({
+  ptc: z.boolean().default(true).volatile(),
   coder: z.object({
     model: z.string().default(''),
     effort: z.string().default('low'),
@@ -61,6 +65,17 @@ export default class MeowTeamConfig extends Service {
   constructor(ctx, config) {
     super(ctx, 'meowTeam')
     this.config = config
+  }
+
+  /**
+   * 是否使用 PTC 模式（模型写 `run_code` 程序调工具）。
+   *
+   * 每次读取都取 volatile 引用，所以设置页保存后下一轮生效；宿主没有挂
+   * PTC runtime 时由本地化插件自行降级，这里只表达「主人的意愿」。
+   * @returns true 表示优先 PTC；false 表示明确要原生模式。
+   */
+  ptcMode() {
+    return this.config.ptc.get() !== false
   }
 
   /**
