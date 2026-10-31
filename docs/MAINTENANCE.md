@@ -15,6 +15,7 @@
 | `plugin/route.js` | 纯函数：设置里的 `model` / `effort` → `agentOptions` |
 | `client/index.js` | 手写 lazy-CJS 浏览器 bundle：设置页 |
 | `index.js` | Host 空入口，占裸包名 Loader 行 |
+| `plugin/locale/*.json` | 插件显示文案（设置 → 内置插件 的标题与描述，`meta.title` / `meta.description`）；`en.json` 是必需入口，其它语言按文件名识别 |
 | `data/*.json` | 中文译文数据（段落、工具描述、参数） |
 | `data/ptc.json` | PTC 模式替换表：`run_code` 文案、SDK 固定说明、提权指引（英文整句 → 中文） |
 | `data/team/*.md` | 四个角色的协议正文（管家 / 码农 / 探针 / 校验者） |

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "zh-meow localizer",
+    "description": "Rewrites every string the model reads — system prompt sections, tool descriptions, and runtime framework text — into Chinese cat-girl phrasing. Display text only: identifiers, enums, and validation rules stay exactly as they are."
+  }
+}

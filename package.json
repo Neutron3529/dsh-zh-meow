@@ -10,6 +10,7 @@
     "./client": "./client/index.js",
     "./plugin": "./plugin/index.js",
     "./plugin/index.js": "./plugin/index.js",
+    "./plugin/locale/*": "./plugin/locale/*",
     "./team-config": "./plugin/team-config.js",
     "./delegate": "./plugin/delegate.js",
     "./cleanup": "./plugin/cleanup.js",
