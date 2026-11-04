@@ -38,6 +38,13 @@ test('中文词典的标题与描述是喵体中文', () => {
   assert.match(meta.description, /中文/)
 })
 
+test('package 清单与补丁暴露前缀续写插件', () => {
+  assert.equal(pkg.exports['./deepseek-prefix'], './plugin/deepseek-prefix.js')
+  const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
+  assert.match(patch, /id: zh-meow-deepseek-prefix/)
+  assert.match(patch, /@local\/dsh-zh-meow\/deepseek-prefix/)
+})
+
 test('package 清单把 locale 资源暴露给插件清单', () => {
   // readPluginMeta 用 `<specifier>/locale/<language>.json` 解析，specifier 是
   // `@local/dsh-zh-meow/plugin`，所以 exports 必须覆盖 `./plugin/locale/*`。

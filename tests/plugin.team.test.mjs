@@ -95,6 +95,14 @@ test('teamRole 只接受空串或四个角色', () => {
   assert.ok(validate({ teamRole: 42 }).issues)
 })
 
+test('团队配置声明 DeepSeek 前缀续写字段', () => {
+  const source = readFileSync(join(root, 'plugin', 'team-config.js'), 'utf8')
+  assert.match(source, /deepseekPrefix: z\.boolean\(\)\.default\(false\)\.volatile\(\)/)
+  assert.match(source, /deepseekPrefixRules: z\.array\(PrefixRule\)\.default\(DEFAULT_PREFIX_RULES\)\.volatile\(\)/)
+  assert.match(source, /deepseekPrefixBaseURL: z\.string\(\)\.default\(DEFAULT_BASE_URL\)\.volatile\(\)/)
+  assert.match(source, /deepseekPrefix\(\) \{/)
+})
+
 test('renderVerifierList 描述槽位、继承与空清单', () => {
   const rows = renderVerifierList([
     { id: 'v1', model: '', effort: 'high', mode: 'two-round' },

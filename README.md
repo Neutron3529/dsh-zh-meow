@@ -21,6 +21,7 @@ DSH 的「喵体中文」插件包：五个 agent preset、一个官方设置页
 打开「设置 → 喵体中文」，可以配置：
 
 - **编码模式**：PTC 模式（默认开启）/ 原生模式。
+- **DeepSeek 前缀续写（Beta）**：总开关、动态 role 规则、OpenAI 兼容端点。
 - **码农**：模型、思考强度。
 - **独立校验者**：动态增删槽位；每个槽位可启用/停用，并配置模型、思考强度、校验模式。
 
@@ -38,6 +39,38 @@ DSH 的「喵体中文」插件包：五个 agent preset、一个官方设置页
 探针不读设置页：它继承管家会话的模型与强度，省掉一套只为一个轻角色存在的配置项。
 
 如果设置页是空白的：先刷新页面；仍然空白时打开浏览器开发者工具看 Console 与 Network，并把错误贴给维护者。设置页是手写的 lazy-CJS bundle，订阅绑定或本地化注册出问题时通常会在 Console 里留下堆栈。
+
+## DeepSeek 前缀续写（Beta）
+
+默认关闭。打开「设置 → 喵体中文 → DeepSeek 前缀续写（Beta）」后，插件会自动注册一个独立的 `deepseek-beta` 供应商，模型选择器里出现「DeepSeek Beta（前缀续写）」，包含 `deepseek-flash` 与 `deepseek-v4-pro`。选中它才会走这条路由；原版 `deepseek-official` 不受影响。
+
+这条路由使用 OpenAI 兼容的 `https://api.deepseek.com/beta`，不是原版的 Anthropic Messages 端点。DeepSeek 的对话前缀续写只在 OpenAI 兼容的 `/beta/chat/completions` 上开放，所以不能只改原版 URL。
+
+### 动态前缀规则
+
+设置页的规则是一个可增删的数组，每条由 `role` 与 `reasoning_content` 组成。每次请求先取原版最后一条消息的 `role`，按数组顺序匹配：
+
+- 命中且内容非空 → 在该请求的 messages 末尾追加：
+
+  ```json
+  { "role": "assistant", "content": "", "reasoning_content": "<规则内容>", "prefix": true }
+  ```
+
+- 规则内容留空 → 这个 role 被临时禁用。
+- 没有命中 → 不追加；关闭思考（`reasoningEffort` 为 `off`）时也不追加。
+
+默认两条规则：`user` → 「让我想想喵~」，`tool` → 「让我看看喵~」。以后要给新 role 加前缀，直接在设置页添加一行即可，不需要改代码；重复 role 时第一条生效。插入消息自身的 `role` 固定是 `assistant`，这是 DeepSeek prefix 续写的要求。
+
+### 缓存命中
+
+服务器返回的 `reasoning_content` 是续写部分。插件会把它接在已发送的 `reasoning_content` 之后，作为 assistant 消息的完整 reasoning 存入会话历史；下一轮请求再把完整值作为 `reasoning_content` 回传，才能和服务器缓存里的完整消息对上。如果服务器返回的已经是完整内容（包含前缀），插件会去掉重复前缀，不会拼两次。
+
+### 端点与凭据
+
+- 端点默认 `https://api.deepseek.com/beta`，可在设置页修改；前缀续写必须使用 `/beta` 路径。
+- 凭据复用 `DEEPSEEK_API_KEY`（设置 → 模型或启动环境）；没有 key 时请求会报 `MISSING_CREDENTIAL`。
+- 首版只声明文本输入：图片会由 DSH 投影成占位文本，不发送 image_url。
+- 关闭总开关会注销这个供应商；仍选着它的会话需要切回其它模型。
 
 ## 编码模式（PTC）
 

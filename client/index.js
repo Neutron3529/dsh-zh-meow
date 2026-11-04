@@ -23,6 +23,10 @@ window.__ModuleLoader__.load({
     const NS = 'settings.meowTeam'
     const ENTRY_ID = 'meow-team-config'
     const EFFORTS = ['', 'off', 'low', 'high', 'max']
+    const DEFAULT_PREFIX_RULES = [
+      { role: 'user', reasoning_content: '让我想想喵~' },
+      { role: 'tool', reasoning_content: '让我看看喵~' },
+    ]
 
     const DICTS = {
       zh: {
@@ -31,6 +35,21 @@ window.__ModuleLoader__.load({
         executor: '编码模式',
         ptc: 'PTC 模式（模型写 run_code 程序来调工具）',
         ptcHint: '默认开启：模型把多次工具调用写进一段程序，中间结果不占对话上下文。关掉则逐次直接调用工具。管家固定用原生模式（它没有命令工具，PTC 的 Node 能力会绕开它的边界）。宿主没有挂 PTC runtime 时自动退回原生模式。切换在下一轮生效。',
+        deepseekPrefix: 'DeepSeek 前缀续写（Beta）',
+        deepseekPrefixEnable: '启用前缀续写供应商',
+        deepseekPrefixHint: '开启后，模型选择器会出现「DeepSeek Beta（前缀续写）」供应商；需要在会话模型选择器里选中它。使用 DEEPSEEK_API_KEY。关闭后该供应商会被移除，已选它的会话需要切回其它模型。',
+        deepseekPrefixRules: '前缀规则',
+        deepseekPrefixRulesHint: '每次请求先匹配原版最后一条消息的 role；命中后在该请求末尾追加一条 assistant 前缀消息。规则按顺序匹配，重复 role 时第一条生效；内容留空表示该 role 不插入。',
+        deepseekPrefixRole: 'role',
+        deepseekPrefixReasoning: 'reasoning_content',
+        deepseekPrefixRolePlaceholder: 'user / tool / system / assistant / developer',
+        deepseekPrefixReasoningPlaceholder: '例如：让我想想喵~',
+        deepseekPrefixAddRule: '添加规则',
+        deepseekPrefixRemoveRule: '删除',
+        deepseekPrefixEmptyRules: '未配置规则：不会插入前缀。',
+        deepseekPrefixBaseURL: '端点',
+        deepseekPrefixBaseURLPlaceholder: 'https://api.deepseek.com/beta',
+        deepseekPrefixBaseURLHint: '前缀续写必须使用 /beta 端点；留空回退默认值。',
         steward: '管家',
         stewardHint: '模型与强度继承 DSH 当前设置（在会话模型选择器里修改）。',
         coder: '码农',
@@ -56,6 +75,21 @@ window.__ModuleLoader__.load({
         executor: 'Coding mode',
         ptc: 'PTC mode (the model writes run_code programs to call tools)',
         ptcHint: 'On by default: the model folds several tool calls into one program, so intermediate results stay out of the conversation. Turn it off to call tools one by one. The steward always uses native mode (it has no shell, and PTC Node access would bypass its boundaries). Without a PTC runtime the plugin falls back to native mode. Changes apply on the next turn.',
+        deepseekPrefix: 'DeepSeek prefix completion (Beta)',
+        deepseekPrefixEnable: 'Enable the prefix-completion provider',
+        deepseekPrefixHint: 'When enabled, a "DeepSeek Beta (prefix completion)" provider appears in the model picker; select it in the session model picker. Uses DEEPSEEK_API_KEY. Turning it off removes the provider; sessions still using it must switch back.',
+        deepseekPrefixRules: 'Prefix rules',
+        deepseekPrefixRulesHint: 'Each request matches the role of the original last message; a matching rule appends an assistant prefix message at the end of that request. Rules match in order; the first duplicate role wins. An empty reasoning_content disables that role.',
+        deepseekPrefixRole: 'role',
+        deepseekPrefixReasoning: 'reasoning_content',
+        deepseekPrefixRolePlaceholder: 'user / tool / system / assistant / developer',
+        deepseekPrefixReasoningPlaceholder: 'e.g. 让我想想喵~',
+        deepseekPrefixAddRule: 'Add rule',
+        deepseekPrefixRemoveRule: 'Remove',
+        deepseekPrefixEmptyRules: 'No rules: no prefix will be inserted.',
+        deepseekPrefixBaseURL: 'Endpoint',
+        deepseekPrefixBaseURLPlaceholder: 'https://api.deepseek.com/beta',
+        deepseekPrefixBaseURLHint: 'Prefix completion requires the /beta endpoint; leave empty to use the default.',
         steward: 'Steward',
         stewardHint: 'Model and effort inherit the current DSH session setting (change it in the session model picker).',
         coder: 'Coder',
@@ -149,6 +183,14 @@ window.__ModuleLoader__.load({
       const verifiers = Array.isArray(snapshot.value.verifiers) ? snapshot.value.verifiers : []
       // 缺省即开启：老配置里没有这个字段时，PTC 模式照旧生效。
       const ptc = snapshot.value.ptc !== false
+      // 前缀规则是动态数组：老配置里没有字段时显示默认两条。
+      const prefixEnabled = snapshot.value.deepseekPrefix === true
+      const prefixRules = Array.isArray(snapshot.value.deepseekPrefixRules)
+        ? snapshot.value.deepseekPrefixRules
+        : DEFAULT_PREFIX_RULES
+      const prefixBaseURL = typeof snapshot.value.deepseekPrefixBaseURL === 'string'
+        ? snapshot.value.deepseekPrefixBaseURL
+        : 'https://api.deepseek.com/beta'
 
       const updateCoder = (patch) => { save('coder', { ...coder, ...patch }) }
       const setVerifiers = (next) => { save('verifiers', next) }
@@ -163,6 +205,17 @@ window.__ModuleLoader__.load({
         let number = 1
         while (used.has(`v${number}`)) number += 1
         setVerifiers([...verifiers, { id: `v${number}`, enabled: true, model: '', effort: 'high', mode: 'one-shot' }])
+      }
+
+      const setPrefixRules = (next) => { save('deepseekPrefixRules', next) }
+      const updatePrefixRule = (index, patch) => {
+        setPrefixRules(prefixRules.map((item, at) => at === index ? { ...item, ...patch } : item))
+      }
+      const removePrefixRule = (index) => {
+        setPrefixRules(prefixRules.filter((_item, at) => at !== index))
+      }
+      const addPrefixRule = () => {
+        setPrefixRules([...prefixRules, { role: 'user', reasoning_content: '' }])
       }
 
       const effortOptions = (current) => {
@@ -186,6 +239,69 @@ window.__ModuleLoader__.load({
             h('span', { style: labelStyle }, t('ptc')),
           ),
           h('div', { style: hintStyle }, t('ptcHint')),
+        ),
+
+        h('section', { style: sectionStyle },
+          h('div', { style: titleStyle }, t('deepseekPrefix')),
+          h('div', { style: rowStyle },
+            h('input', {
+              type: 'checkbox',
+              checked: prefixEnabled,
+              disabled: !writable,
+              onChange: (event) => { save('deepseekPrefix', event.target.checked) },
+            }),
+            h('span', { style: labelStyle }, t('deepseekPrefixEnable')),
+          ),
+          h('div', { style: hintStyle }, t('deepseekPrefixHint')),
+          h('div', { style: { ...hintStyle, marginTop: '4px' } }, t('deepseekPrefixRulesHint')),
+          prefixRules.length === 0
+            ? h('div', { style: hintStyle }, t('deepseekPrefixEmptyRules'))
+            : null,
+          prefixRules.map((rule, index) => h('div', {
+            key: `prefix-rule-${index}-${snapshot.revision}`,
+            style: rowStyle,
+          },
+            h('input', {
+              defaultValue: rule?.role ?? '',
+              placeholder: t('deepseekPrefixRolePlaceholder'),
+              disabled: !writable,
+              style: { ...inputStyle, minWidth: '140px' },
+              onBlur: (event) => { updatePrefixRule(index, { role: event.target.value }) },
+            }),
+            h('input', {
+              defaultValue: rule?.reasoning_content ?? '',
+              placeholder: t('deepseekPrefixReasoningPlaceholder'),
+              disabled: !writable,
+              style: inputStyle,
+              onBlur: (event) => { updatePrefixRule(index, { reasoning_content: event.target.value }) },
+            }),
+            h('button', {
+              type: 'button',
+              style: buttonStyle,
+              disabled: !writable,
+              onClick: () => { removePrefixRule(index) },
+            }, t('deepseekPrefixRemoveRule')),
+          )),
+          h('div', {},
+            h('button', {
+              type: 'button',
+              style: buttonStyle,
+              disabled: !writable,
+              onClick: addPrefixRule,
+            }, t('deepseekPrefixAddRule')),
+          ),
+          h('div', { style: rowStyle },
+            h('span', { style: labelStyle }, t('deepseekPrefixBaseURL')),
+            h('input', {
+              key: `prefix-base-url-${snapshot.revision}`,
+              defaultValue: prefixBaseURL,
+              placeholder: t('deepseekPrefixBaseURLPlaceholder'),
+              disabled: !writable,
+              style: { ...inputStyle, minWidth: '320px' },
+              onBlur: (event) => { save('deepseekPrefixBaseURL', event.target.value) },
+            }),
+          ),
+          h('div', { style: hintStyle }, t('deepseekPrefixBaseURLHint')),
         ),
 
         h('section', { style: sectionStyle },

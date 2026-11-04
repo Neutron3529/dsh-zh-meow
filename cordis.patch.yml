@@ -30,6 +30,11 @@
     - id: meow-team-config
       name: '@local/dsh-zh-meow/team-config'
 
+    # DeepSeek 前缀续写（Beta）：总开关在「设置 → 喵体中文」里。开启后注册
+    # 一个走 OpenAI 兼容 /beta 端点的新供应商；关闭时注销，不影响原版 deepseek。
+    - id: zh-meow-deepseek-prefix
+      name: '@local/dsh-zh-meow/deepseek-prefix'
+
     # ── 原版：单体喵体中文，默认 preset ─────────────────────────────────────
     - id: preset-zh-meow
       name: '@deepseek-ai/dsh-agent-preset'

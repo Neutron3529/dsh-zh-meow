@@ -24,6 +24,13 @@
 import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 
+import {
+  DEFAULT_BASE_URL,
+  DEFAULT_PREFIX_RULES,
+  normalizeBaseURL,
+  normalizePrefixRules,
+} from './deepseek-prefix-core.js'
+
 /** 默认校验者槽位：两个都继承模型，一个 high 两轮、一个 max 一次拿全。 */
 const DEFAULT_VERIFIERS = [
   { id: 'v1', enabled: true, model: '', effort: 'high', mode: 'two-round' },
@@ -39,9 +46,18 @@ const Verifier = z.object({
   mode: z.union(['two-round', 'one-shot']).default('one-shot'),
 })
 
+/** 单条 DeepSeek 前缀规则：role 是匹配条件，reasoning_content 是插入内容。 */
+const PrefixRule = z.object({
+  role: z.string().required(),
+  reasoning_content: z.string().default(''),
+})
+
 /** 插件配置 schema：volatile 字段才能在设置页即时编辑并立即生效。 */
 export const Config = z.object({
   ptc: z.boolean().default(true).volatile(),
+  deepseekPrefix: z.boolean().default(false).volatile(),
+  deepseekPrefixRules: z.array(PrefixRule).default(DEFAULT_PREFIX_RULES).volatile(),
+  deepseekPrefixBaseURL: z.string().default(DEFAULT_BASE_URL).volatile(),
   coder: z.object({
     model: z.string().default(''),
     effort: z.string().default('low'),
@@ -76,6 +92,30 @@ export default class MeowTeamConfig extends Service {
    */
   ptcMode() {
     return this.config.ptc.get() !== false
+  }
+
+  /**
+   * DeepSeek 前缀续写配置。
+   *
+   * 规则数组是动态的：设置页可以按 role 增删，adapter 每次请求都重新读取。
+   * 端点在这里尽量归一化；非法值保留原文，由 adapter 在请求时给出明确错误。
+   * @returns {{ enabled: boolean, rules: object[], baseURL: string }} 当前配置。
+   */
+  deepseekPrefix() {
+    const rawBaseURL = this.config.deepseekPrefixBaseURL.get()
+    let baseURL
+    try {
+      baseURL = normalizeBaseURL(rawBaseURL)
+    } catch {
+      baseURL = typeof rawBaseURL === 'string' && rawBaseURL.trim().length > 0
+        ? rawBaseURL.trim()
+        : DEFAULT_BASE_URL
+    }
+    return {
+      enabled: this.config.deepseekPrefix.get() === true,
+      rules: normalizePrefixRules(this.config.deepseekPrefixRules.get()),
+      baseURL,
+    }
   }
 
   /**
