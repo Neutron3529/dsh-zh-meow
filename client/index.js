@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
         deepseekPrefixHint: '开启后，模型选择器会出现「DeepSeek Beta（前缀续写）」供应商；需要在会话模型选择器里选中它。使用 DEEPSEEK_API_KEY。关闭后该供应商会被移除，已选它的会话需要切回其它模型。',
         deepseekPrefixRules: '前缀规则',
         deepseekPrefixRulesHint: '每次请求先匹配原版最后一条消息的 role；命中后在该请求末尾追加一条 assistant 前缀消息。规则按顺序匹配，重复 role 时第一条生效；内容留空表示该 role 不插入。',
+        deepseekPrefixToolsHint: 'DeepSeek 目前不允许工具定义与前缀续写同时出现（会返回 400 Function call should not be used with prefix）。带工具的 agent 请求会自动跳过前缀且不报错；无工具请求仍按规则插入。',
         deepseekPrefixRole: 'role',
         deepseekPrefixReasoning: 'reasoning_content',
         deepseekPrefixRolePlaceholder: 'user / tool / system / assistant / developer',
@@ -80,6 +81,7 @@ window.__ModuleLoader__.load({
         deepseekPrefixHint: 'When enabled, a "DeepSeek Beta (prefix completion)" provider appears in the model picker; select it in the session model picker. Uses DEEPSEEK_API_KEY. Turning it off removes the provider; sessions still using it must switch back.',
         deepseekPrefixRules: 'Prefix rules',
         deepseekPrefixRulesHint: 'Each request matches the role of the original last message; a matching rule appends an assistant prefix message at the end of that request. Rules match in order; the first duplicate role wins. An empty reasoning_content disables that role.',
+        deepseekPrefixToolsHint: 'DeepSeek currently rejects prefix completion together with tool definitions (HTTP 400 "Function call should not be used with prefix"). Requests that declare tools skip the prefix automatically and do not error; tool-free requests still insert it.',
         deepseekPrefixRole: 'role',
         deepseekPrefixReasoning: 'reasoning_content',
         deepseekPrefixRolePlaceholder: 'user / tool / system / assistant / developer',
@@ -254,6 +256,7 @@ window.__ModuleLoader__.load({
           ),
           h('div', { style: hintStyle }, t('deepseekPrefixHint')),
           h('div', { style: { ...hintStyle, marginTop: '4px' } }, t('deepseekPrefixRulesHint')),
+          h('div', { style: { ...hintStyle, marginTop: '4px' } }, t('deepseekPrefixToolsHint')),
           prefixRules.length === 0
             ? h('div', { style: hintStyle }, t('deepseekPrefixEmptyRules'))
             : null,

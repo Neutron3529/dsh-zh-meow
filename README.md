@@ -58,8 +58,19 @@ DSH 的「喵体中文」插件包：五个 agent preset、一个官方设置页
 
 - 规则内容留空 → 这个 role 被临时禁用。
 - 没有命中 → 不追加；关闭思考（`reasoningEffort` 为 `off`）时也不追加。
+- 请求带工具定义（`tools` 非空）→ 不追加，见下面的互斥说明。
 
 默认两条规则：`user` → 「让我想想喵~」，`tool` → 「让我看看喵~」。以后要给新 role 加前缀，直接在设置页添加一行即可，不需要改代码；重复 role 时第一条生效。插入消息自身的 `role` 固定是 `assistant`，这是 DeepSeek prefix 续写的要求。
+
+### 与工具调用互斥
+
+DeepSeek Beta 不允许 `prefix: true` 与 tool 定义同时出现在一个请求里，否则返回：
+
+```text
+HTTP 400 Function call should not be used with prefix
+```
+
+DSH 的 agent 请求默认携带工具定义，所以这类请求会自动跳过前缀注入、正常走工具调用；只有不带工具的请求（例如纯文本生成）才会插入前缀。这是服务端限制：`tool_choice: "none"`、`tools: []`、关闭 thinking 都不能绕过，只有 `tools` 缺失或为空数组时才能使用 prefix。
 
 ### 缓存命中
 

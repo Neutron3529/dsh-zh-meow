@@ -205,9 +205,8 @@ test('blocksToText 为图片与文件保留占位符', () => {
   assert.equal(blocksToText(undefined), '')
 })
 
-test('buildChatRequest 在末尾插入动态 role 前缀', () => {
-  const { body, prefix } = buildChatRequest(baseOptions({
-    tools: [{ name: 'read', description: '读文件', parameters: { type: 'object' } }],
+test('buildChatRequest 在无工具请求末尾插入动态 role 前缀', () => {
+  const { body, prefix, suppressed } = buildChatRequest(baseOptions({
     maxTokens: 1024,
     stop: ['STOP'],
   }), { enabled: true, rules: DEFAULT_PREFIX_RULES })
@@ -217,10 +216,8 @@ test('buildChatRequest 在末尾插入动态 role 前缀', () => {
   assert.equal(body.reasoning_effort, 'high')
   assert.equal(body.max_tokens, 1024)
   assert.deepEqual(body.stop, ['STOP'])
-  assert.deepEqual(body.tools, [{
-    type: 'function',
-    function: { name: 'read', description: '读文件', parameters: { type: 'object' } },
-  }])
+  assert.equal('tools' in body, false)
+  assert.equal(suppressed, undefined)
   assert.deepEqual(prefix, { matchedRole: 'user', text: '让我想想喵~' })
   assert.deepEqual(body.messages.at(-1), {
     role: 'assistant',
@@ -228,6 +225,30 @@ test('buildChatRequest 在末尾插入动态 role 前缀', () => {
     reasoning_content: '让我想想喵~',
     prefix: true,
   })
+})
+
+test('buildChatRequest 在带工具请求中跳过前缀，避免 Function call 400', () => {
+  const { body, prefix, suppressed } = buildChatRequest(baseOptions({
+    tools: [{ name: 'read', description: '读文件', parameters: { type: 'object' } }],
+  }), { enabled: true, rules: DEFAULT_PREFIX_RULES })
+  assert.deepEqual(body.tools, [{
+    type: 'function',
+    function: { name: 'read', description: '读文件', parameters: { type: 'object' } },
+  }])
+  assert.equal(prefix, undefined)
+  assert.equal(suppressed, 'tools')
+  assert.equal(body.messages.some(message => message.prefix === true), false)
+  assert.equal(body.messages.at(-1).role, 'user')
+})
+
+test('buildChatRequest 只在工具列表非空时跳过前缀', () => {
+  const { prefix, suppressed, body } = buildChatRequest(baseOptions({ tools: [] }), {
+    enabled: true,
+    rules: DEFAULT_PREFIX_RULES,
+  })
+  assert.equal(suppressed, undefined)
+  assert.deepEqual(prefix, { matchedRole: 'user', text: '让我想想喵~' })
+  assert.equal('tools' in body, false)
 })
 
 test('buildChatRequest 支持 tool、自定义 role 与关闭思考', () => {

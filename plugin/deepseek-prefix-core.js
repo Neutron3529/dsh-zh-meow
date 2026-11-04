@@ -249,16 +249,21 @@ function toOpenAiTool(tool) {
  * 构造一次 DeepSeek Beta 请求。
  * @param {object} options DSH 的 GenerateOptions。
  * @param {{ enabled?: boolean, rules?: unknown }} [settings] 前缀配置。
- * @returns {{ body: object, prefix: { matchedRole: string, text: string } | undefined }} 请求体与已插入的前缀。
+ * 当请求携带 tool 定义时跳过前缀：DeepSeek Beta 会以
+ * "Function call should not be used with prefix" 拒绝该组合。
+ * @returns {{ body: object, prefix: { matchedRole: string, text: string } | undefined, suppressed: 'tools' | undefined }} 请求体、已插入的前缀与抑制原因。
  */
 export function buildChatRequest(options, settings = {}) {
   const effort = typeof options.reasoningEffort === 'string' ? options.reasoningEffort : undefined
   const thinking = effort !== 'off'
-  const prefix = selectPrefix(options.messages, {
+  const matched = selectPrefix(options.messages, {
     enabled: settings.enabled !== false,
     rules: settings.rules,
     thinking,
   })
+  const hasTools = Array.isArray(options.tools) && options.tools.length > 0
+  const prefix = hasTools ? undefined : matched
+  const suppressed = hasTools && matched !== undefined ? 'tools' : undefined
   const messages = toChatMessages(options.messages, { system: options.system })
   if (prefix !== undefined) {
     messages.push({
@@ -280,7 +285,7 @@ export function buildChatRequest(options, settings = {}) {
     thinking: { type: thinking ? 'enabled' : 'disabled' },
     ...(thinking && effort !== undefined ? { reasoning_effort: effort } : {}),
   }
-  return { body, prefix }
+  return { body, prefix, suppressed }
 }
 
 /**
