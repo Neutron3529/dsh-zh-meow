@@ -9,6 +9,10 @@
  *   - `ptc` 决定喵体中文用哪种工具执行器：`true`（默认）走 PTC 模式，模型写
  *     `run_code` 程序来调工具；`false` 走原生模式，模型直接逐个调工具。
  *     宿主没有挂 PTC runtime 时自动退回原生模式。
+ *   - `mergeReadWrite` 决定 PTC 提示词里要不要那段「合并读写」指引：`true`（默认）
+ *     会说明写文件撞上 `file changed since it was read` 时，就在同一个 `run_code`
+ *     程序里重新读再写，别把读写拆成两次程序调用；`false` 则不出现这段文字。
+ *     它只改提示词，不动执行器与 SDK 结构；原生模式本来就没有这个指引。
  *   - `model` 留空（空字符串）= 继承父 agent 的模型；否则写成 `provider/model`。
  *   - `effort` 留空 = 继承父 agent 的思考强度；否则是 `off` / `low` / `high` /
  *     `max`（或模型自己声明的值）。
@@ -55,6 +59,7 @@ const PrefixRule = z.object({
 /** 插件配置 schema：volatile 字段才能在设置页即时编辑并立即生效。 */
 export const Config = z.object({
   ptc: z.boolean().default(true).volatile(),
+  mergeReadWrite: z.boolean().default(true).volatile(),
   deepseekPrefix: z.boolean().default(false).volatile(),
   deepseekPrefixRules: z.array(PrefixRule).default(DEFAULT_PREFIX_RULES).volatile(),
   deepseekPrefixBaseURL: z.string().default(DEFAULT_BASE_URL).volatile(),
@@ -92,6 +97,19 @@ export default class MeowTeamConfig extends Service {
    */
   ptcMode() {
     return this.config.ptc.get() !== false
+  }
+
+  /**
+   * 是否把「合并读写」指引写进 PTC 提示词。
+   *
+   * 开启时提示词会说明：写文件撞上 `file changed since it was read` 时，在同一个
+   * `run_code` 程序里重新 `read` 再 `write`，不要把读写拆成两次程序调用——拆开会让
+   * 读到的全文进入对话，白白多一次全量缓存重传。开关只影响提示词文字，不动执行器。
+   * 每次读取都取 volatile 引用，所以设置页保存后下一轮生效。
+   * @returns true 表示写进提示词；false 表示明确不要。
+   */
+  mergeReadWriteMode() {
+    return this.config.mergeReadWrite.get() !== false
   }
 
   /**

@@ -68,3 +68,15 @@ test('设置页暴露 PTC 模式开关，配置服务默认开启', () => {
   assert.match(config, /ptc: z\.boolean\(\)\.default\(true\)\.volatile\(\)/, '默认开启且必须是 volatile 字段')
   assert.match(config, /ptcMode\(\)/)
 })
+
+test('设置页暴露合并读写开关，配置服务默认开启', () => {
+  // 设置页：一个 checkbox，保存到 `mergeReadWrite` 字段，并带上中英说明。
+  assert.match(client, /合并读写/)
+  assert.match(client, /save\('mergeReadWrite', event\.target\.checked\)/)
+  assert.match(client, /const mergeReadWrite = snapshot\.value\.mergeReadWrite !== false/, '老配置没有该字段时按开启渲染')
+  assert.match(client, /Merge read and write into one run_code program/)
+
+  const config = readFileSync(join(root, 'plugin', 'team-config.js'), 'utf8')
+  assert.match(config, /mergeReadWrite: z\.boolean\(\)\.default\(true\)\.volatile\(\)/, '默认开启且必须是 volatile 字段')
+  assert.match(config, /mergeReadWriteMode\(\)/)
+})

@@ -1,5 +1,7 @@
 {
   "ptcOnly": "`run_code` 是唯一可以直接调用的工具喵：直接调其它任何工具都会失败；下面 SDK 里声明的每个工具都要在程序内部调用。",
+  "mergeReadWrite": "## 合并读写：先读后写放进同一个程序\n\n要改一个可能已经变过的文件时（上一轮读过它，或者别的进程动过它），不要把「读一次」和「写一次」拆成两次程序调用：在同一个 `run_code` 程序里先 `await tools.read(...)`，紧接着 `await tools.write(...)`。读到的内容只在程序里判断，不要 `console.log` 出来——这样读到的全文不进对话，也就不多一次全量上下文重传。新鲜度只认同一个路径：读别的文件不会让目标文件变得可写。\n\n`write` / `edit` 仍可能抛出这条错误：\n\n```text\ncannot write \"<path>\": file changed since it was read — re-read the file, then retry\n```\n\n意思是「手里的读取快照已经过期」，不是权限问题。这时不要另起一轮重试，直接在同一个程序里 `try/catch` 接住它，重新读一次再写一次：\n\n```ts\ntry {\n  await tools.write({ file_path: 'notes.md', content: next })\n} catch (error) {\n  if (!String(error?.message ?? error).includes('file changed since it was read')) throw error\n  await tools.read({ file_path: 'notes.md' })\n  await tools.write({ file_path: 'notes.md', content: next })\n}\n```\n\n只有真需要把最新内容交给主人看时，才把读到的文本放进程序输出。",
+  "mergeReadWriteHint": "遇到 `file changed since it was read` 时，在同一个 `run_code` 程序里重新 `read` 一次再 `write`；读到的内容不要打印。",
   "phrases": [
     {
       "en": "Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short summary of what the program does. Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return is program output — curate it. Image-bearing subtool results are attached after the run.",

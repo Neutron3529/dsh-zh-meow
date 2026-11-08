@@ -21,6 +21,7 @@ DSH 的「喵体中文」插件包：五个 agent preset、一个官方设置页
 打开「设置 → 喵体中文」，可以配置：
 
 - **编码模式**：PTC 模式（默认开启）/ 原生模式。
+- **合并读写**（默认开启，只在 PTC 模式下生效）：写文件撞上 stale read 报错时，让模型在同一个 `run_code` 程序里重新读再写。
 - **DeepSeek 前缀续写（Beta）**：总开关、动态 role 规则、OpenAI 兼容端点。
 - **码农**：模型、思考强度。
 - **独立校验者**：动态增删槽位；每个槽位可启用/停用，并配置模型、思考强度、校验模式。
@@ -103,6 +104,8 @@ DSH 的 agent 请求默认携带工具定义，所以这类请求会自动跳过
 - 把 `translateTools` 关掉时本插件不接管执行器，PTC 模式也就不会生效（工具描述保持原文）。
 - PTC 下模型读到的中文文本包括：`run_code` 的工具与参数描述、`tools:ptc-only` 规则、生成的 TypeScript/Python SDK 声明与固定说明、sandbox 提权指引。这些英文原句的替换表在 `data/ptc.json`。
 - `run_code` 里嵌套的子调用沿用同一套策略与审批：外层程序的 `sandbox_permissions` 只对那一次完整执行生效，嵌套工具仍各自走策略。
+- **合并读写指引**（默认开启）：PTC 提示词里多一段 `tools:ptc-merge-rw`，说明写文件撞上 `cannot write "…": file changed since it was read — re-read the file, then retry` 时，就在同一个 `run_code` 程序里重新 `read` 再 `write`，不要把「读一次」和「写一次」拆成两次程序调用——拆开会让读到的全文进入对话，白白多一次全量缓存重传。`write` / `edit` 的 SDK 描述也各多一句同样的提醒。开关存在 `meow-team-config` 的 `mergeReadWrite` 字段（volatile），关掉后这段文字与那句提醒都不出现；原生模式本来没有这个指引，那里每条工具调用就是独立一轮，合并不起来。
+- 注意：这条指引**不承诺绕过任何检查**。读一个别的文件不会让目标文件变得可写——新鲜度只认同一个路径的读取记录，`read(README.md)` 之后再 `write(test)` 照样会被 stale read 拦下。
 
 ## 角色边界
 

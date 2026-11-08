@@ -8,8 +8,8 @@
  *     自带的工具执行器：`describe()` 返回译文 schema，`execute()` 原样委托给
  *     底层执行器（原生或 PTC）；
  *   - PTC 模式（模型写 `run_code` 程序调工具）下的可见文本：`run_code` 的工具
- *     与参数描述、`tools:ptc-only` 规则、生成的 TypeScript/Python SDK 声明及其
- *     固定说明，译文表在 `data/ptc.json`；
+ *     与参数描述、`tools:ptc-only` 规则、`tools:ptc-merge-rw` 合并读写指引、
+ *     生成的 TypeScript/Python SDK 声明及其固定说明，译文表在 `data/ptc.json`；
  *   - 框架性英文（运行时上下文快照表头、工作目录/文件策略/审批/委派等上下文、
  *     工作区说明前言、skill 目录前言、目录变更通知、goal 轮次），走
  *     `data/frames.json` 的整句/正则替换表。运行时上下文在 `runtimeContext.project`
@@ -19,6 +19,12 @@
  * 执行器模式由「设置 → 喵体中文」里的 `ptc` 开关决定（默认开启 PTC）：每次组装
  * 都重新读配置，所以保存后下一轮生效；宿主没有挂 PTC runtime 或 PTC 包加载失败时
  * 自动退回原生模式，不会让预设挂载失败。
+ *
+ * 「合并读写」由「设置 → 喵体中文」里的 `mergeReadWrite` 开关决定（默认开启）：
+ * 开启时 PTC 提示词多一段指引——写文件撞上 `file changed since it was read` 时，
+ * 在同一个 `run_code` 程序里重新读再写，别把读写拆成两次程序调用（拆开会让读到的
+ * 全文进入对话，白白换来一次全量重传）。`write` / `edit` 的 SDK 描述也会多一句
+ * 同样的提醒。关掉时两者都不出现，其余行为不变。
  *
  * 只改模型看得到的文字，不动任何标识符、枚举值、参数名与结构，
  * 所以工具的校验、调度、UI 呈现行为都保持原样。
@@ -69,10 +75,17 @@ export const inject = ['tools', 'systemPrompt']
  * @property {string} [ptc] PTC 模式偏好：`inherit`（默认，跟随「设置 → 喵体中文」的开关）、
  *   `ptc`（强制 PTC）、`native`（强制原生）。管家这类没有命令工具的角色必须用 `native`：
  *   PTC 的 Node 程序能直接读写文件、跑子进程，会绕开它的「只写任务文件、不跑命令」边界。
+ * @property {string} [mergeReadWrite] 「合并读写」指引偏好：`inherit`（默认，跟随设置页开关）、
+ *   `on`（强制写进 PTC 提示词）、`off`（强制不写）。开启时 PTC 模式的提示词会说明：写文件
+ *   撞上 `file changed since it was read` 时，就在同一个 `run_code` 程序里重新读再写，
+ *   别把读写拆成两次程序调用。原生模式没有这个指引——那里每条工具调用本来就是独立一轮。
  */
 
 /** PTC 模式偏好的合法取值。 */
 const PTC_PREFERENCES = new Set(['inherit', 'ptc', 'native'])
+
+/** 「合并读写」指引偏好的合法取值。 */
+const MERGE_PREFERENCES = new Set(['inherit', 'on', 'off'])
 
 /** 配置字段：名称、期望类型与默认值。 */
 const CONFIG_FIELDS = [
@@ -84,6 +97,7 @@ const CONFIG_FIELDS = [
   { name: 'reportUntranslated', type: 'boolean', fallback: false },
   { name: 'teamRole', type: 'string', fallback: '' },
   { name: 'ptc', type: 'string', fallback: 'inherit' },
+  { name: 'mergeReadWrite', type: 'string', fallback: 'inherit' },
 ]
 
 /** 团队角色：空字符串表示这套 preset 不启用团队协议。 */
@@ -125,6 +139,9 @@ export const Config = {
         }
         if (field.name === 'ptc' && !PTC_PREFERENCES.has(raw)) {
           return { issues: [{ message: `zh-meow-localizer: config.ptc must be one of ${[...PTC_PREFERENCES].join(', ')}` }] }
+        }
+        if (field.name === 'mergeReadWrite' && !MERGE_PREFERENCES.has(raw)) {
+          return { issues: [{ message: `zh-meow-localizer: config.mergeReadWrite must be one of ${[...MERGE_PREFERENCES].join(', ')}` }] }
         }
         out[field.name] = raw
       }
@@ -284,12 +301,19 @@ const FRAMES_FILE = 'frames.json'
  */
 const PTC_FILE = 'ptc.json'
 
-/** PTC 模式专属段落名：`tools:ptc-only` 是「只能调 run_code」的规则，`tools:sdk` 是生成的 SDK。 */
+/**
+ * PTC 模式专属段落名：`tools:ptc-only` 是「只能调 run_code」的规则，
+ * `tools:ptc-merge-rw` 是「把先读后写放进同一个程序」的指引，`tools:sdk` 是生成的 SDK。
+ */
 const PTC_ONLY_SECTION = 'tools:ptc-only'
+const MERGE_READ_WRITE_SECTION = 'tools:ptc-merge-rw'
 const SDK_SECTION = 'tools:sdk'
 
-/** 插件自己产出的两个 PTC 段落：原文已经是中文，不进漏翻报告。 */
-const SELF_OWNED_SECTIONS = new Set([PTC_ONLY_SECTION, SDK_SECTION])
+/** 插件自己产出的三个 PTC 段落：原文已经是中文，不进漏翻报告。 */
+const SELF_OWNED_SECTIONS = new Set([PTC_ONLY_SECTION, MERGE_READ_WRITE_SECTION, SDK_SECTION])
+
+/** 写文件类工具：PTC 模式下给它们的 SDK 描述追加一条 stale-read 处理提示。 */
+const WRITE_TOOL_NAMES = new Set(['write', 'edit'])
 
 /** PTC 模式下唯一直接可调的工具名。 */
 const RUN_CODE_TOOL = 'run_code'
@@ -342,13 +366,15 @@ export function parseReplacements(parsed) {
 /**
  * 读入 PTC 模式替换表。
  *
- * 结构：`{ ptcOnly: string, phrases: [...], patterns: [...] }`。文件缺失或坏掉时
- * 返回空表：PTC 文本保持英文，但执行器照常工作。
- * @returns {{ ptcOnly: string, phrases: object[], patterns: object[] }} PTC 替换表。
+ * 结构：`{ ptcOnly: string, mergeReadWrite: string, mergeReadWriteHint: string,
+ * phrases: [...], patterns: [...] }`。前三个是插件自己产出的中文文本（不是某条英文
+ * 句子的译文），其余是「英文整句 → 中文」替换规则。文件缺失或坏掉时返回空表：
+ * PTC 文本保持英文，但执行器照常工作。
+ * @returns {{ ptcOnly: string, mergeReadWrite: string, mergeReadWriteHint: string, phrases: object[], patterns: object[] }} PTC 替换表。
  */
 export function loadPtcTable() {
   if (ptcCache !== undefined) return ptcCache
-  const empty = { ptcOnly: '', phrases: [], patterns: [] }
+  const empty = { ptcOnly: '', mergeReadWrite: '', mergeReadWriteHint: '', phrases: [], patterns: [] }
   let parsed
   try {
     parsed = JSON.parse(readFileSync(join(DATA_DIR, PTC_FILE), 'utf8'))
@@ -362,6 +388,8 @@ export function loadPtcTable() {
   }
   ptcCache = {
     ptcOnly: typeof parsed.ptcOnly === 'string' ? parsed.ptcOnly : '',
+    mergeReadWrite: typeof parsed.mergeReadWrite === 'string' ? parsed.mergeReadWrite : '',
+    mergeReadWriteHint: typeof parsed.mergeReadWriteHint === 'string' ? parsed.mergeReadWriteHint : '',
     ...parseReplacements(parsed),
   }
   return ptcCache
@@ -855,19 +883,27 @@ export function translatePtcSchema(schema, ptcTable, suffix = '') {
  * TypeScript/Python 声明与真实绑定完全同构，只有描述是中文。渲染完再用
  * `data/ptc.json` 把固定说明句子（`## Writing code for run_code`、调用规则、
  * bash 示例引导等）换成中文。
+ *
+ * `describeHints` 是给个别工具追加一句提示的钩子：`write` / `edit` 在合并读写
+ * 开启时会多一句「撞上 stale read 就在同一个程序里重读重写」。追加发生在译文之后，
+ * 所以原文描述为空（纯 schema 工具）时不追加，避免凭空造出一条描述。
  * @param {readonly object[]} definitions - 本步可见的工具定义。
- * @param {{ render: (schemas: object[]) => string, ptcTable: object, toolTable: Record<string, unknown>, suffix: string, onDescribe?: (untranslated: Map<string, string>) => void }} options - 渲染器与译文表。
+ * @param {{ render: (schemas: object[]) => string, ptcTable: object, toolTable: Record<string, unknown>, suffix: string, onDescribe?: (untranslated: Map<string, string>) => void, describeHints?: (name: string) => string | undefined }} options - 渲染器、译文表与追加提示。
  * @returns 中文 SDK 段落文本。
  */
 export function renderLocalizedSdk(definitions, options) {
-  const { render, ptcTable, toolTable, suffix, onDescribe } = options
+  const { render, ptcTable, toolTable, suffix, onDescribe, describeHints } = options
   const untranslated = new Map()
   const schemas = definitions.map((definition) => {
     if (definition.description.length > 0 && toolTable[definition.name] === undefined) {
       untranslated.set(definition.name, definition.description.slice(0, 120))
     }
     const projected = translateToolSchema(projectDefinition(definition), toolTable[definition.name], suffix)
-    return { ...projected, output: definition.output?.schema }
+    const hint = typeof describeHints === 'function' ? describeHints(definition.name) : undefined
+    const described = typeof hint === 'string' && hint.length > 0 && typeof projected.description === 'string' && projected.description.length > 0
+      ? { ...projected, description: `${projected.description}\n\n${hint}` }
+      : projected
+    return { ...described, output: definition.output?.schema }
   })
   onDescribe?.(untranslated)
   return applyFrames(render(schemas), ptcTable)
@@ -911,29 +947,78 @@ export function resolveExecutorMode(ctx, ptcReady, preference = 'inherit') {
 }
 
 /**
+ * 主人是否想要「合并读写」指引。
+ *
+ * 指的是一段只出现在 PTC 模式下的提示词：写文件撞上 `file changed since it was
+ * read` 时，别把「读一次」和「写一次」拆成两轮，而是在同一个 `run_code` 程序里
+ * 重新读、再写。拆成两轮会把读到的全文塞进对话，换来一次没必要的全量重传。
+ *
+ * 设置服务不可用或配置读不出来时按默认（开启）处理：指引只影响提示词文字，
+ * 不该因为设置页故障就悄悄消失。
+ * @param {{ get?: (name: string) => unknown }} ctx - 预设作用域上下文。
+ * @returns true 表示把指引写进 PTC 提示词；false 表示主人明确关掉。
+ */
+export function prefersMergeReadWrite(ctx) {
+  const service = typeof ctx.get === 'function' ? ctx.get('meowTeam') : undefined
+  if (!isPlainObject(service) || typeof service.mergeReadWriteMode !== 'function') return true
+  try {
+    return service.mergeReadWriteMode() !== false
+  } catch {
+    return true
+  }
+}
+
+/**
+ * 解析「合并读写」指引该不该出现。
+ *
+ * 与执行器模式一样，每次组装都重新读设置服务的 volatile 引用，所以设置页保存后
+ * 下一轮生效。preset 级偏好可以压过设置页：`on` 强制写、`off` 强制不写。
+ * @param {{ get?: (name: string) => unknown }} ctx - 预设作用域上下文。
+ * @param {'inherit' | 'on' | 'off'} [preference] - preset 级偏好。
+ * @returns true 表示写进 PTC 提示词。
+ */
+export function resolveMergeReadWrite(ctx, preference = 'inherit') {
+  if (preference === 'on') return true
+  if (preference === 'off') return false
+  return prefersMergeReadWrite(ctx)
+}
+
+/**
  * 造一个双模式执行器：PTC 模式下暴露 `run_code` 与中文 SDK，原生模式下直接
  * 暴露中文工具声明。两种模式共用同一个实例，所以设置页切换开关时不需要重装
  * 执行器，也不会撞上「每个作用域只允许一个执行器」的限制。
  *
  * 选路发生在每次 `describe()`、`execute()` 与段落渲染时，而不是构造时；PTC
  * 执行器本身也按需创建，避免在 runtime 尚未挂载的启动阶段就失败。
- * @param {{ resolveMode: () => 'ptc' | 'native', native: { describe: Function, execute: Function }, getPtc?: () => ({ describe: Function, execute: Function } | undefined), ptcTable: object, toolTable: Record<string, unknown>, suffix: string, renderSdk: (definitions: readonly object[]) => string, sectionOrder: (name: string) => number, onDescribe?: (untranslated: Map<string, string>) => void }} options - 执行器、译文表与渲染入口。
+ *
+ * `resolveMergeReadWrite` 只控制 `tools:ptc-merge-rw` 这段提示词有没有内容：
+ * 它不动执行器、不动 SDK 结构，关掉时只是少一段给模型的文字。没接线时按关闭处理，
+ * 免得单测或老部署凭空多出一段规则。
+ * @param {{ resolveMode: () => 'ptc' | 'native', native: { describe: Function, execute: Function }, getPtc?: () => ({ describe: Function, execute: Function } | undefined), ptcTable: object, toolTable: Record<string, unknown>, suffix: string, renderSdk: (definitions: readonly object[]) => string, sectionOrder: (name: string) => number, onDescribe?: (untranslated: Map<string, string>) => void, resolveMergeReadWrite?: () => boolean }} options - 执行器、译文表与渲染入口。
  * @returns 可直接交给 `ctx.tools.setExecutor()` 的执行器。
  */
 export function createModeExecutor(options) {
   const { resolveMode, native, getPtc, ptcTable, toolTable, suffix, renderSdk, sectionOrder, onDescribe } = options
+  const wantsMergeReadWrite = typeof options.resolveMergeReadWrite === 'function' ? options.resolveMergeReadWrite : () => false
   const translatingNative = createTranslatingExecutor(native, toolTable, suffix, onDescribe)
   /** 当前真正生效的 PTC 执行器；模式为 native 时恒为 undefined。 */
   const activePtc = () => resolveMode() === 'ptc' ? getPtc?.() : undefined
   return {
-    // 两个 PTC 段落常驻注册：原生模式下文本为空串，`renderPrompt` 会把空段落
-    // 过滤掉；这样切换模式不需要增删段落（提示词前缀因此更稳定）。
+    // 三个 PTC 段落常驻注册：原生模式下文本为空串，`renderPrompt` 会把空段落
+    // 过滤掉；这样切换模式或切换合并读写开关都不需要增删段落（提示词前缀因此更稳定）。
     sections: [
       {
         name: PTC_ONLY_SECTION,
         order: sectionOrder(PTC_ONLY_SECTION),
         interpolate: false,
         text: () => activePtc() === undefined ? '' : ptcTable.ptcOnly,
+      },
+      {
+        name: MERGE_READ_WRITE_SECTION,
+        order: sectionOrder(MERGE_READ_WRITE_SECTION),
+        interpolate: false,
+        // 开关在远端：每次组装都重新问一遍，设置页保存后下一轮就换。
+        text: () => activePtc() === undefined || !wantsMergeReadWrite() ? '' : ptcTable.mergeReadWrite,
       },
       {
         name: SDK_SECTION,
@@ -1020,9 +1105,10 @@ async function loadPtcModules(ctx) {
  * @param {string} suffix - 追加到描述末尾的标记。
  * @param {(untranslated: Map<string, string>) => void} onDescribe - 报告本批漏翻工具。
  * @param {'inherit' | 'ptc' | 'native'} [ptcPreference] - preset 级 PTC 偏好；管家传 `native`。
+ * @param {'inherit' | 'on' | 'off'} [mergeReadWritePreference] - preset 级「合并读写」偏好。
  * @returns 无。
  */
-async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPreference = 'inherit') {
+async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPreference = 'inherit', mergeReadWritePreference = 'inherit') {
   if (Object.keys(toolTable).length === 0) return
   if (typeof ctx.tools?.setExecutor !== 'function') return
   const NativeToolExecutor = await loadNativeExecutor(ctx)
@@ -1059,7 +1145,17 @@ async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPref
       ? schemas => ptcModules.renderToolsSdkPy(schemas)
       : schemas => ptcModules.renderToolsSdk(schemas, runtime.programFormat)
     try {
-      return renderLocalizedSdk(definitions, { render, ptcTable, toolTable, suffix, onDescribe })
+      return renderLocalizedSdk(definitions, {
+        render,
+        ptcTable,
+        toolTable,
+        suffix,
+        onDescribe,
+        // 写文件类工具多一句 stale-read 的处理方式；开关关掉时描述与原来完全一致。
+        describeHints: name => WRITE_TOOL_NAMES.has(name) && resolveMergeReadWrite(ctx, mergeReadWritePreference)
+          ? ptcTable.mergeReadWriteHint
+          : undefined,
+      })
     } catch (error) {
       ctx.logger?.warn?.('zh-meow-localizer: 渲染中文 PTC SDK 失败，本段保留原文', error)
       return ''
@@ -1093,9 +1189,12 @@ async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPref
       const order = ctx.systemPrompt.getSectionOrder(name)
       if (Number.isFinite(order)) return order
     } catch {
-      // 旧版宿主没有这两个常量，走下面的默认值。
+      // 旧版宿主没有这几个常量（`tools:ptc-merge-rw` 是本插件自己加的段落），走下面的默认值。
     }
-    return name === PTC_ONLY_SECTION ? 800 : 5000
+    // 合并读写段落夹在「只能调 run_code」与 SDK 声明之间：先读规则，再读操作指引，最后看声明。
+    if (name === PTC_ONLY_SECTION) return 800
+    if (name === MERGE_READ_WRITE_SECTION) return 850
+    return 5000
   }
 
   try {
@@ -1110,6 +1209,7 @@ async function installToolTranslator(ctx, toolTable, suffix, onDescribe, ptcPref
       renderSdk,
       sectionOrder,
       onDescribe,
+      resolveMergeReadWrite: () => resolveMergeReadWrite(ctx, mergeReadWritePreference),
     }))
   } catch (error) {
     ctx.logger?.warn?.('zh-meow-localizer: 安装工具描述执行器失败，工具描述保持原文', error)
@@ -1206,6 +1306,6 @@ export async function apply(ctx, config = {}) {
   if (translateTools) {
     await installToolTranslator(ctx, toolTable, suffix, (report) => {
       untranslatedTools = report
-    }, typeof config.ptc === 'string' ? config.ptc : 'inherit')
+    }, typeof config.ptc === 'string' ? config.ptc : 'inherit', typeof config.mergeReadWrite === 'string' ? config.mergeReadWrite : 'inherit')
   }
 }

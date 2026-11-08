@@ -12,16 +12,21 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  Config,
   createModeExecutor,
   loadPtcTable,
   loadTranslations,
   renderLocalizedSdk,
   resolveExecutorMode,
+  resolveMergeReadWrite,
   translatePtcSchema,
 } from '../plugin/index.js'
 
 /** 真实的 PTC 替换表。 */
 const ptcTable = loadPtcTable()
+
+/** 三个 PTC 段落的顺序：上游 `systemPrompt` 拥有这几个常量，测试里照抄一份。 */
+const ORDER = { 'tools:ptc-only': 800, 'tools:ptc-merge-rw': 850, 'tools:sdk': 5000 }
 
 /** 按英文片段取一条替换规则，避免依赖 `phrases` 的数组顺序。 */
 const phraseFor = fragment => {
@@ -72,6 +77,65 @@ test('ptc.json 不会被当成段落/工具译文读进普通译文表', () => {
   assert.equal(tools.phrases, undefined, 'ptc.json 的替换规则不应混进工具译文')
 })
 
+test('ptc.json 带合并读写指引，正文点出 stale read 原文与同程序重试写法', () => {
+  assert.match(ptcTable.mergeReadWrite, /file changed since it was read/, '必须原样点出报错文字，模型才对得上')
+  assert.match(ptcTable.mergeReadWrite, /tools\.read/)
+  assert.match(ptcTable.mergeReadWrite, /tools\.write/)
+  assert.match(ptcTable.mergeReadWrite, /try\/catch|catch/, '要给出在同一个程序里补救的写法')
+  assert.match(ptcTable.mergeReadWrite, /不要另起一轮|别把[\s\S]*拆成两次程序调用/)
+  assert.doesNotMatch(ptcTable.mergeReadWrite, /并行/, '并行读写绕不过 stale read 检查，不能这么写')
+  assert.doesNotMatch(ptcTable.mergeReadWrite, /绕过/, '这个指引不承诺绕过任何检查')
+  assert.match(ptcTable.mergeReadWriteHint, /file changed since it was read/)
+  assert.match(ptcTable.mergeReadWriteHint, /run_code/)
+})
+
+test('合并读写：PTC 模式且开关开启时给出指引，关掉或原生模式时为空', () => {
+  const on = executorParts('ptc', { merge: true })
+  const [ptcOnly, mergeOn, sdkOn] = on.executor.sections
+  assert.equal(mergeOn.text(), ptcTable.mergeReadWrite)
+  assert.equal(ptcOnly.text(), ptcTable.ptcOnly, '开关不影响「只能调 run_code」那段')
+  assert.equal(sdkOn.text([bashDefinition]), 'SDK(bash)')
+
+  const off = executorParts('ptc', { merge: false })
+  assert.equal(off.executor.sections[1].text(), '', '关掉时不能留下半句话')
+
+  const native = executorParts('native', { merge: true })
+  assert.equal(native.executor.sections[1].text(), '', '原生模式没有合并读写这回事')
+})
+
+test('合并读写开关跟着设置切换，不需要重装执行器', () => {
+  const { executor, state } = executorParts('ptc', { merge: false })
+  assert.equal(executor.sections[1].text(), '')
+  state.merge = true
+  assert.equal(executor.sections[1].text(), ptcTable.mergeReadWrite, '打开后下一轮组装就出现')
+  state.merge = false
+  assert.equal(executor.sections[1].text(), '')
+})
+
+test('合并读写开启时给 write / edit 的 SDK 描述追加提示，其它工具不动', () => {
+  const hint = ptcTable.mergeReadWriteHint
+  const options = {
+    // 用 '; ' 分隔工具：追加的提示自带换行，按行切会把工具行切断。
+    render: schemas => schemas.map(schema => schema.name + ':' + schema.description).join('; '),
+    ptcTable,
+    toolTable: loadTranslations().tools,
+    suffix: '',
+    describeHints: name => (name === 'write' || name === 'edit') ? hint : undefined,
+  }
+  const sdk = renderLocalizedSdk([
+    { name: 'write', description: 'Write a UTF-8 text file.', parameters: { type: 'object', properties: {} } },
+    { name: 'edit', description: 'Edit an existing UTF-8 text file.', parameters: { type: 'object', properties: {} } },
+    bashDefinition,
+  ], options)
+  const entries = sdk.split('; ')
+  assert.ok(entries.find(entry => entry.startsWith('write:')).includes(hint), 'write 描述应带上提示')
+  assert.ok(entries.find(entry => entry.startsWith('edit:')).includes(hint), 'edit 同理会撞上 stale read')
+  assert.ok(!entries.find(entry => entry.startsWith('bash:')).includes(hint), '别的工具不该被追加')
+
+  const blank = renderLocalizedSdk([{ name: 'no_desc', description: '' }], { ...options, describeHints: () => hint })
+  assert.equal(blank, 'no_desc:', '原文描述为空时不追加，避免凭空造出一条描述')
+})
+
 test('translatePtcSchema 把 run_code 描述与参数描述换成中文，结构字段不动', () => {
   const translated = translatePtcSchema(runCodeSchema, ptcTable)
   assert.notEqual(translated.description, runCodeSchema.description)
@@ -116,11 +180,13 @@ test('renderLocalizedSdk 翻译工具描述与固定说明，并报告漏翻工�
 /**
  * 构造一套执行器 mock。
  * @param {'ptc' | 'native'} mode 模式解析结果；测试里可以中途改。
+ * @param {{ merge?: boolean }} [options] 「合并读写」开关状态；默认关闭，
+ *   免得无关断言被多出来的段落打乱。
  * @returns 双模式执行器的依赖与调用记录。
  */
-function executorParts(mode) {
+function executorParts(mode, options = {}) {
   const calls = []
-  const state = { mode }
+  const state = { mode, merge: options.merge ?? false }
   const native = {
     describe: definitions => ({ schemas: definitions.map(({ name, description, parameters }) => ({ name, description, parameters })) }),
     execute: async (input) => { calls.push({ via: 'native', input }); return { via: 'native' } },
@@ -137,12 +203,13 @@ function executorParts(mode) {
     toolTable: loadTranslations().tools,
     suffix: '',
     renderSdk: definitions => `SDK(${definitions.map(definition => definition.name).join(',')})`,
-    sectionOrder: name => name === 'tools:ptc-only' ? 800 : 5000,
+    sectionOrder: name => ORDER[name] ?? 5000,
+    resolveMergeReadWrite: () => state.merge,
   })
   return { executor, calls, state }
 }
 
-test('PTC 模式：只暴露 run_code，两个段落是中文，execute 走 PTC', async () => {
+test('PTC 模式：只暴露 run_code，三个段落顺序固定，execute 走 PTC', async () => {
   const { executor, calls } = executorParts('ptc')
   const described = executor.describe([bashDefinition])
   assert.deepEqual(described.knownNames, ['run_code'])
@@ -150,9 +217,12 @@ test('PTC 模式：只暴露 run_code，两个段落是中文，execute 走 PTC'
   assert.equal(described.schemas[0].name, 'run_code')
   assert.match(described.schemas[0].description, /执行一段 TypeScript 程序/)
 
-  const [ptcOnly, sdk] = executor.sections
+  const [ptcOnly, mergeSection, sdk] = executor.sections
   assert.equal(ptcOnly.name, 'tools:ptc-only')
   assert.equal(ptcOnly.order, 800)
+  assert.equal(mergeSection.name, 'tools:ptc-merge-rw')
+  assert.equal(mergeSection.order, 850, '合并读写段落紧跟 PTC 规则，排在 SDK 声明之前')
+  assert.equal(mergeSection.text(), '', '这个 mock 没开合并读写，段落必须是空串')
   assert.equal(sdk.name, 'tools:sdk')
   assert.equal(sdk.order, 5000)
   assert.equal(ptcOnly.text(), ptcTable.ptcOnly)
@@ -168,8 +238,9 @@ test('原生模式：暴露中文工具声明，PTC 段落为空，execute 走�
   assert.equal(described.schemas[0].name, 'bash')
   assert.match(described.schemas[0].description, /执行一条 bash 命令/)
 
-  const [ptcOnly, sdk] = executor.sections
+  const [ptcOnly, mergeSection, sdk] = executor.sections
   assert.equal(ptcOnly.text(), '', '原生模式下 PTC 规则段落必须为空，否则模型会读到不适用的规则')
+  assert.equal(mergeSection.text(), '', '原生模式下不能出现合并读写指引：那里本来也合并不了')
   assert.equal(sdk.text([bashDefinition]), '', '原生模式下不能出现 PTC 的 SDK 段落')
 
   await executor.execute({ calls: [] })
@@ -178,14 +249,14 @@ test('原生模式：暴露中文工具声明，PTC 段落为空，execute 走�
 
 test('同一个执行器实例跟着设置切换模式，不需要重装', async () => {
   const { executor, calls, state } = executorParts('ptc')
-  assert.equal(executor.sections[1].text([bashDefinition]), 'SDK(bash)')
+  assert.equal(executor.sections[2].text([bashDefinition]), 'SDK(bash)')
 
   state.mode = 'native'
-  assert.equal(executor.sections[1].text([bashDefinition]), '')
+  assert.equal(executor.sections[2].text([bashDefinition]), '')
   assert.equal(executor.describe([bashDefinition]).schemas[0].name, 'bash')
 
   state.mode = 'ptc'
-  assert.equal(executor.sections[1].text([bashDefinition]), 'SDK(bash)')
+  assert.equal(executor.sections[2].text([bashDefinition]), 'SDK(bash)')
   assert.equal(executor.describe([bashDefinition]).schemas[0].name, 'run_code')
 
   await executor.execute({ calls: [] })
@@ -235,6 +306,32 @@ test('preset 级偏好压过设置页：管家强制原生，也能强制开启'
 
   const noRuntime = modeContext({ runtime: false })
   assert.equal(resolveExecutorMode(noRuntime.ctx, true, 'ptc'), 'native', '强制 PTC 也拗不过缺失的 runtime')
+})
+test('合并读写默认开启，尊重设置页开关与 preset 偏好', () => {
+  const state = { merge: true }
+  const ctx = { get: name => name === 'meowTeam' ? { mergeReadWriteMode: () => state.merge } : undefined }
+  assert.equal(resolveMergeReadWrite(ctx), true, '默认跟随设置页（开启）')
+  assert.equal(resolveMergeReadWrite({ get: () => undefined }), true, '配置服务缺失时按默认开启')
+
+  state.merge = false
+  assert.equal(resolveMergeReadWrite(ctx), false, '设置页关掉后不再出现')
+  assert.equal(resolveMergeReadWrite(ctx, 'on'), true, 'preset 级 on 压过设置页的关闭')
+
+  state.merge = true
+  assert.equal(resolveMergeReadWrite(ctx, 'off'), false, 'preset 级 off 压过设置页的开启')
+
+  const broken = { get: () => ({ mergeReadWriteMode: () => { throw new Error('boom') } }) }
+  assert.equal(resolveMergeReadWrite(broken), true, '读配置抛错时按默认开启，不让指引悄悄消失')
+})
+test('Config 接受 mergeReadWrite 的三种取值，非法值被拒，缺省是 inherit', () => {
+  const validate = Config['~standard'].validate
+  for (const value of ['inherit', 'on', 'off']) {
+    const result = validate({ mergeReadWrite: value })
+    assert.equal(result.issues, undefined, `mergeReadWrite: ${value} 应被接受`)
+    assert.equal(result.value.mergeReadWrite, value)
+  }
+  assert.ok(validate({ mergeReadWrite: 'yes' }).issues, '拼错的值必须报错，而不是静默退回默认')
+  assert.equal(validate({}).value.mergeReadWrite, 'inherit', '不写时跟随设置页')
 })
 
 test('PTC 执行器不可用时执行器仍退回原生', async () => {

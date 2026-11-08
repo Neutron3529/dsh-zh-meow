@@ -35,6 +35,8 @@ window.__ModuleLoader__.load({
         executor: '编码模式',
         ptc: 'PTC 模式（模型写 run_code 程序来调工具）',
         ptcHint: '默认开启：模型把多次工具调用写进一段程序，中间结果不占对话上下文。关掉则逐次直接调用工具。管家固定用原生模式（它没有命令工具，PTC 的 Node 能力会绕开它的边界）。宿主没有挂 PTC runtime 时自动退回原生模式。切换在下一轮生效。',
+        mergeReadWrite: '合并读写（先读后写放进同一个 run_code 程序）',
+        mergeReadWriteHint: '默认开启且只在 PTC 模式下生效：写文件撞上「file changed since it was read」这条 stale read 报错时，提示词会让模型就在同一个 run_code 程序里重新读、再写一次，而不是拆成「这一轮先读一条、下一轮再写一条」两次调用——拆开会让读到的全文进入对话，白白多一次全量缓存重传。写文件类工具的 SDK 描述也会多一句同样的提醒。关掉后这段指引与那句提醒都不再出现，其余行为不变。',
         deepseekPrefix: 'DeepSeek 前缀续写（Beta）',
         deepseekPrefixEnable: '启用前缀续写供应商',
         deepseekPrefixHint: '开启后，模型选择器会出现「DeepSeek Beta（前缀续写）」供应商；需要在会话模型选择器里选中它。使用 DEEPSEEK_API_KEY。关闭后该供应商会被移除，已选它的会话需要切回其它模型。',
@@ -76,6 +78,8 @@ window.__ModuleLoader__.load({
         executor: 'Coding mode',
         ptc: 'PTC mode (the model writes run_code programs to call tools)',
         ptcHint: 'On by default: the model folds several tool calls into one program, so intermediate results stay out of the conversation. Turn it off to call tools one by one. The steward always uses native mode (it has no shell, and PTC Node access would bypass its boundaries). Without a PTC runtime the plugin falls back to native mode. Changes apply on the next turn.',
+        mergeReadWrite: 'Merge read and write into one run_code program',
+        mergeReadWriteHint: 'On by default, PTC mode only: when a write hits the "file changed since it was read" stale-read error, the prompt tells the model to re-read and write again inside the same run_code program, instead of splitting it into one read call this turn and one write call the next — a split pushes the whole file text into the conversation and costs a full context re-upload. Write tools also gain one extra sentence in their SDK description. Turning it off removes both the section and that sentence; nothing else changes.',
         deepseekPrefix: 'DeepSeek prefix completion (Beta)',
         deepseekPrefixEnable: 'Enable the prefix-completion provider',
         deepseekPrefixHint: 'When enabled, a "DeepSeek Beta (prefix completion)" provider appears in the model picker; select it in the session model picker. Uses DEEPSEEK_API_KEY. Turning it off removes the provider; sessions still using it must switch back.',
@@ -185,6 +189,8 @@ window.__ModuleLoader__.load({
       const verifiers = Array.isArray(snapshot.value.verifiers) ? snapshot.value.verifiers : []
       // 缺省即开启：老配置里没有这个字段时，PTC 模式照旧生效。
       const ptc = snapshot.value.ptc !== false
+      // 同样缺省即开启：老配置里没有这个字段时，「合并读写」指引照旧写进提示词。
+      const mergeReadWrite = snapshot.value.mergeReadWrite !== false
       // 前缀规则是动态数组：老配置里没有字段时显示默认两条。
       const prefixEnabled = snapshot.value.deepseekPrefix === true
       const prefixRules = Array.isArray(snapshot.value.deepseekPrefixRules)
@@ -241,6 +247,16 @@ window.__ModuleLoader__.load({
             h('span', { style: labelStyle }, t('ptc')),
           ),
           h('div', { style: hintStyle }, t('ptcHint')),
+          h('div', { style: { ...rowStyle, marginTop: '6px' } },
+            h('input', {
+              type: 'checkbox',
+              checked: mergeReadWrite,
+              disabled: !writable,
+              onChange: (event) => { save('mergeReadWrite', event.target.checked) },
+            }),
+            h('span', { style: labelStyle }, t('mergeReadWrite')),
+          ),
+          h('div', { style: hintStyle }, t('mergeReadWriteHint')),
         ),
 
         h('section', { style: sectionStyle },

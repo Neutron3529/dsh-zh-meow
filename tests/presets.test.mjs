@@ -131,6 +131,9 @@ test('五个 preset id 唯一', () => {
 test('只有管家写死编码模式，其它 preset 跟随设置页开关', () => {
   for (const [label, slice] of [['原版', original], ['码农', coder], ['探针', probe], ['校验者', verifier]]) {
     assert.ok(!/^\s+ptc: (native|ptc)$/m.test(slice), `${label} preset 不应写死 ptc，必须跟随设置页`)
+    assert.ok(!/^\s+mergeReadWrite: (on|off)$/m.test(slice), `${label} preset 不应写死 mergeReadWrite，必须跟随设置页`)
   }
   assert.match(steward, /^\s+ptc: native$/m)
+  // 管家是原生模式，合并读写指引在那里恒为空，所以它连这个字段都不该出现。
+  assert.ok(!/^\s+mergeReadWrite:/m.test(steward), '管家已经是原生模式，不需要配合并读写')
 })
